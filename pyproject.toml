@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nuanced-screener"
+version = "0.1.0"
+description = "Local single-client screener loader: Parquet storage + DuckDB compute."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "duckdb>=0.10.0",
+  "pandas>=2.1.0",
+  "pyarrow>=14.0.0",
+  "pandas_market_calendars>=4.4.0",
+  "requests>=2.31.0",
+  "typer>=0.12.0",
+  "rich>=13.7.0",
+  # Prototype vendor:
+  "yfinance>=0.2.36",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+ns = "screener_loader.cli:main"
+

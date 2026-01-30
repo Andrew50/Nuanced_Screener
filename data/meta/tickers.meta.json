@@ -1,0 +1,17 @@
+{
+  "filters": {
+    "exclude_etfs": false,
+    "exclude_test_issues": true,
+    "include_exchanges": [
+      "NASDAQ",
+      "NYSE",
+      "AMEX"
+    ]
+  },
+  "row_count": 8471,
+  "source_urls": [
+    "https://www.nasdaqtrader.com/dynamic/symdir/nasdaqlisted.txt",
+    "https://www.nasdaqtrader.com/dynamic/symdir/otherlisted.txt"
+  ],
+  "universe_version": "2026-01-30T00:50:49.607297+00:00"
+}
