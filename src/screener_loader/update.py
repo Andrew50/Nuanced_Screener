@@ -5,7 +5,7 @@ import os
 import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from dataclasses import asdict
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time as dtime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable
 
@@ -24,12 +24,13 @@ from rich.progress import (
 from .config import LoaderConfig
 from .calendar_utils import TradingCalendar, latest_trading_day_on_or_before, subtract_years
 from .derived import rebuild_last_n_bars, rebuild_last_n_bars_from_polygon_date_partitions
+from .http_client import configure_host_rate_limit
 from .paths import ensure_dirs
 from .raw_update import TickerResult, merge_write_ticker_parquet, plan_task_for_ticker
 from .universe import build_universe, load_universe
 from .vendors.registry import get_ohlcv_vendor
 from .vendors.polygon_grouped import PolygonGroupedDailyVendor, require_polygon_api_key
-from .rate_limit import FixedIntervalRateLimiter
+from zoneinfo import ZoneInfo
 
 
 def _chunked(items: list, n: int) -> Iterable[list]:
@@ -214,10 +215,28 @@ def _plan_polygon_dates(
     cal: TradingCalendar,
     today: date,
     existing_partitions: set[date],
+    now_utc: datetime | None = None,
 ) -> list[date]:
-    latest = latest_trading_day_on_or_before(today, cal)
-    start = subtract_years(latest, config.lookback_years)
-    trading_days = cal.valid_trading_days(start, latest)
+    end = latest_trading_day_on_or_before(today, cal)
+
+    # If today is a trading day, Polygon's grouped-daily data is often not available
+    # until after the close (and some delay). When running intraday, prefer the most
+    # recent *completed* trading day instead of "today".
+    if now_utc is not None and end == today:
+        try:
+            now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
+            # Conservative: treat data as "ready" after 20:00 ET.
+            if now_et.time() < dtime(20, 0):
+                # Find previous trading day (second-to-last in a small window).
+                window = cal.valid_trading_days(today - timedelta(days=10), today)
+                if len(window) >= 2:
+                    end = window[-2]
+        except Exception:
+            # If timezone/calendar logic fails, fall back to the calendar-derived `end`.
+            pass
+
+    start = subtract_years(end, config.lookback_years)
+    trading_days = cal.valid_trading_days(start, end)
     if not trading_days:
         return []
 
@@ -238,7 +257,7 @@ def _plan_polygon_dates(
     ordered: list[date] = []
 
     # Phase 1: latest day always.
-    ordered.append(latest)
+    ordered.append(end)
 
     # Phase 2: missing days in window, newest -> oldest.
     for d in sorted(missing_in_window, reverse=True):
@@ -263,11 +282,15 @@ def _update_market_data_polygon_grouped(config: LoaderConfig) -> None:
     ensure_dirs(config.paths)
     api_key = require_polygon_api_key(config.repo_root)
 
+    # Shared, per-host limiter applies across all Polygon requests (including retries).
+    configure_host_rate_limit("api.polygon.io", calls_per_minute=int(config.calls_per_minute))
+
     cal = TradingCalendar("NYSE")
     today = date.today()
+    now_utc = datetime.now(timezone.utc)
 
     existing = set(config.paths.list_polygon_grouped_daily_partitions().keys())
-    planned_dates = _plan_polygon_dates(config=config, cal=cal, today=today, existing_partitions=existing)
+    planned_dates = _plan_polygon_dates(config=config, cal=cal, today=today, existing_partitions=existing, now_utc=now_utc)
     if not planned_dates:
         print("[yellow]No trading dates planned[/yellow]")
         return
@@ -278,7 +301,7 @@ def _update_market_data_polygon_grouped(config: LoaderConfig) -> None:
     )
 
     vendor = PolygonGroupedDailyVendor()
-    limiter = FixedIntervalRateLimiter(calls_per_minute=int(config.calls_per_minute))
+    import requests
 
     completed = 0
     fetched_paths: list[Path] = []
@@ -297,15 +320,32 @@ def _update_market_data_polygon_grouped(config: LoaderConfig) -> None:
         task_id = progress.add_task("Fetching Polygon grouped daily", total=len(planned_dates))
 
         for d in planned_dates:
-            limiter.wait()
             try:
-                df = vendor.fetch_grouped_daily(
-                    trading_date=d,
-                    api_key=api_key,
-                    adjusted=bool(config.polygon_adjusted),
-                    include_otc=bool(config.polygon_include_otc),
-                    timeout_seconds=float(config.timeout_seconds),
-                )
+                df = None
+                for attempt in range(0, max(1, int(config.max_retries)) + 1):
+                    try:
+                        df = vendor.fetch_grouped_daily(
+                            trading_date=d,
+                            api_key=api_key,
+                            adjusted=bool(config.polygon_adjusted),
+                            include_otc=bool(config.polygon_include_otc),
+                            timeout_seconds=float(config.timeout_seconds),
+                        )
+                        break
+                    except requests.HTTPError as e:
+                        resp = getattr(e, "response", None)
+                        status = getattr(resp, "status_code", None)
+                        if status == 429 and attempt < int(config.max_retries):
+                            retry_after = None
+                            if resp is not None:
+                                retry_after = resp.headers.get("Retry-After")
+                            try:
+                                sleep_s = float(retry_after) if retry_after else _retry_sleep(attempt)
+                            except Exception:
+                                sleep_s = _retry_sleep(attempt)
+                            time.sleep(max(0.0, float(sleep_s)))
+                            continue
+                        raise
 
                 out_path = config.paths.polygon_grouped_daily_parquet(d)
                 tmp_path = Path(str(out_path) + ".tmp")
@@ -322,6 +362,16 @@ def _update_market_data_polygon_grouped(config: LoaderConfig) -> None:
                     fetched_paths.append(out_path)
                     print(f"[green]UPDATED[/green] {d.isoformat()} (rows={len(df)})")
 
+            except requests.HTTPError as e:
+                resp = getattr(e, "response", None)
+                status = getattr(resp, "status_code", None)
+                # Avoid logging the full URL (it can include apiKey=...).
+                if status is None:
+                    print(f"[red]FAILED[/red] {d.isoformat()} - HTTPError")
+                else:
+                    print(f"[red]FAILED[/red] {d.isoformat()} - HTTP {status}")
+                if config.fail_fast:
+                    raise
             except Exception as e:  # noqa: BLE001
                 print(f"[red]FAILED[/red] {d.isoformat()} - {type(e).__name__}: {e}")
                 if config.fail_fast:

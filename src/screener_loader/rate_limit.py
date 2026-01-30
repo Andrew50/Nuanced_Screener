@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+import threading
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -12,6 +13,7 @@ class FixedIntervalRateLimiter:
 
     calls_per_minute: int
     _next_allowed_ts: float = 0.0
+    _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
 
     def __post_init__(self) -> None:
         if self.calls_per_minute <= 0:
@@ -22,8 +24,10 @@ class FixedIntervalRateLimiter:
         return 60.0 / float(self.calls_per_minute)
 
     def wait(self) -> None:
-        now = time.monotonic()
-        if now < self._next_allowed_ts:
-            time.sleep(self._next_allowed_ts - now)
-        self._next_allowed_ts = time.monotonic() + self.interval_seconds
+        # Thread-safe: multiple concurrent callers share the same schedule.
+        with self._lock:
+            now = time.monotonic()
+            if now < self._next_allowed_ts:
+                time.sleep(self._next_allowed_ts - now)
+            self._next_allowed_ts = time.monotonic() + self.interval_seconds
 

@@ -24,7 +24,7 @@ def test_plan_polygon_dates_orders_latest_then_missing_then_existing() -> None:
     cfg = LoaderConfig(lookback_years=1, refresh_tail_days=3, calls_per_minute=5)
 
     existing = {date(2026, 1, 2), date(2026, 1, 4), date(2026, 1, 9), date(2026, 1, 10)}
-    planned = _plan_polygon_dates(cfg, cal=cal, today=date(2026, 1, 10), existing_partitions=existing)
+    planned = _plan_polygon_dates(cfg, cal=cal, today=date(2026, 1, 10), existing_partitions=existing, now_utc=None)
 
     # Required ordering:
     # 1) Latest day first, always.
