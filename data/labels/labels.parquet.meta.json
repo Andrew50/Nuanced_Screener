@@ -1,0 +1,16 @@
+{
+  "source_csv": "._tmp_real/labels_subset_raw.csv",
+  "rows": 9,
+  "columns": [
+    "ticker",
+    "setup",
+    "label",
+    "weight",
+    "asof_date"
+  ],
+  "key_columns": [
+    "ticker",
+    "asof_date",
+    "setup"
+  ]
+}

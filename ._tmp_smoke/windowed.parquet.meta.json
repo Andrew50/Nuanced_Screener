@@ -1,0 +1,10 @@
+{
+  "source_csv": "._tmp_smoke/labels.csv",
+  "source_csv_mtime_ns": 1769810896421663502,
+  "source_csv_size": 50,
+  "window_size": 3,
+  "feature_columns": [],
+  "mask_current_day_to_open_only": true,
+  "rows": 3,
+  "samples": 1
+}

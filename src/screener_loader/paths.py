@@ -19,12 +19,20 @@ class DataPaths:
         return self.data_dir / "meta"
 
     @property
+    def labels_dir(self) -> Path:
+        return self.data_dir / "labels"
+
+    @property
     def raw_dir(self) -> Path:
         return self.data_dir / "raw"
 
     @property
     def derived_dir(self) -> Path:
         return self.data_dir / "derived"
+
+    @property
+    def models_dir(self) -> Path:
+        return self.data_dir / "models"
 
     @property
     def raw_by_date_dir(self) -> Path:
@@ -55,8 +63,16 @@ class DataPaths:
         return self.meta_dir / "symbol_map.csv"
 
     @property
+    def labels_parquet(self) -> Path:
+        return self.labels_dir / "labels.parquet"
+
+    @property
     def last_100_bars_parquet(self) -> Path:
         return self.derived_dir / "last_100_bars.parquet"
+
+    @property
+    def windowed_bars_parquet(self) -> Path:
+        return self.derived_dir / "windowed_bars.parquet"
 
     def raw_ticker_parquet(self, ticker: str) -> Path:
         safe = ticker.replace("/", "_")
@@ -84,10 +100,12 @@ class DataPaths:
 
 def ensure_dirs(paths: DataPaths) -> None:
     paths.meta_dir.mkdir(parents=True, exist_ok=True)
+    paths.labels_dir.mkdir(parents=True, exist_ok=True)
     paths.raw_dir.mkdir(parents=True, exist_ok=True)
     paths.raw_by_date_dir.mkdir(parents=True, exist_ok=True)
     paths.polygon_grouped_daily_dir.mkdir(parents=True, exist_ok=True)
     paths.derived_dir.mkdir(parents=True, exist_ok=True)
+    paths.models_dir.mkdir(parents=True, exist_ok=True)
     paths.logs_dir.mkdir(parents=True, exist_ok=True)
 
 

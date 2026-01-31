@@ -1,0 +1,8 @@
+{
+  "priors_by_setup": {
+    "F": 1.0,
+    "P": 1.0,
+    "NEP": 1.0
+  },
+  "global_prior": 1.0
+}

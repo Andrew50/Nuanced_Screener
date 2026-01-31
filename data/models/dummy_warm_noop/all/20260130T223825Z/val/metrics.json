@@ -1,0 +1,45 @@
+{
+  "task_type": "binary_classification",
+  "overall": {
+    "n": 1,
+    "pos": 1,
+    "neg": 0,
+    "auroc": null,
+    "auprc": 1.0,
+    "at_threshold": {
+      "threshold": 0.5,
+      "tp": 0,
+      "fp": 0,
+      "tn": 0,
+      "fn": 1,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    "at_k": [
+      {
+        "k": 1,
+        "precision_at_k": 1.0,
+        "recall_at_k": 1.0,
+        "tp_at_k": 1,
+        "pos_total": 1
+      },
+      {
+        "k": 1,
+        "precision_at_k": 1.0,
+        "recall_at_k": 1.0,
+        "tp_at_k": 1,
+        "pos_total": 1
+      },
+      {
+        "k": 1,
+        "precision_at_k": 1.0,
+        "recall_at_k": 1.0,
+        "tp_at_k": 1,
+        "pos_total": 1
+      }
+    ],
+    "score_mean": 0.0,
+    "score_std": 0.0
+  }
+}

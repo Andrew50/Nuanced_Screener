@@ -1,0 +1,10 @@
+{
+  "source_csv": null,
+  "source_csv_mtime_ns": null,
+  "source_csv_size": null,
+  "window_size": 20,
+  "feature_columns": [],
+  "mask_current_day_to_open_only": true,
+  "rows": 600,
+  "samples": 30
+}

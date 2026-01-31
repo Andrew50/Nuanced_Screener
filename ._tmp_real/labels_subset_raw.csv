@@ -1,0 +1,10 @@
+ticker,date,setup,label,weight
+AAOI,2023-08-23,F,True,4.0
+AAPL,2022-10-28,P,True,3.5
+ABNB,2022-03-29,F,True,2.0
+ABNB,2022-11-02,NEP,True,2.5
+ACLS,2022-08-25,F,True,4.5
+AFRM,2023-08-25,P,True,3.0
+ATNM,2022-11-14,F,True,3.0
+GNS,2023-08-25,F,True,5.0
+INDO,2022-08-23,F,True,3.0

@@ -1,0 +1,6 @@
+{
+  "runner": "dummy_warm_noop",
+  "warmed_batches": true,
+  "samples": 30,
+  "time_steps": 600
+}
