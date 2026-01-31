@@ -169,13 +169,34 @@ def load_labels_csv(
     # Coerce optional well-known columns.
     if "weight" in out.columns:
         out["weight"] = pd.to_numeric(out["weight"], errors="coerce")
+    if "p_label" in out.columns:
+        # Probabilistic teacher label in [0,1] (used for pseudo-label training).
+        out["p_label"] = pd.to_numeric(out["p_label"], errors="coerce")
+    if "label_def_version" in out.columns:
+        out["label_def_version"] = out["label_def_version"].astype(str)
+    if "lf_config_hash" in out.columns:
+        out["lf_config_hash"] = out["lf_config_hash"].astype(str)
     if "fold" in out.columns:
         out["fold"] = pd.to_numeric(out["fold"], errors="coerce").astype("Int64")
     if "split" in out.columns:
         out["split"] = out["split"].astype(str).str.strip().str.lower()
 
     # Infer and coerce additional boolean attribute columns.
-    ignore = {"ticker", "asof_date", "setup", "label", "weight", "fold", "split", "source", "notes", "created_ts"}
+    ignore = {
+        "ticker",
+        "asof_date",
+        "setup",
+        "label",
+        "weight",
+        "p_label",
+        "label_def_version",
+        "lf_config_hash",
+        "fold",
+        "split",
+        "source",
+        "notes",
+        "created_ts",
+    }
     bool_cols = _infer_boolean_attribute_columns(out, ignore=ignore)
     for c in bool_cols:
         out[c] = _coerce_bool_series(out[c])

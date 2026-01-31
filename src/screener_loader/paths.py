@@ -31,8 +31,34 @@ class DataPaths:
         return self.data_dir / "derived"
 
     @property
+    def window_embeddings_dir(self) -> Path:
+        """
+        Stack 4: on-disk embedding index for sliding windows over full history.
+
+        Subdirs are expected:
+        - fullinfo/   (no masking; offline historical mining)
+        - openonly/   (mask last bar to open-only; screen-at-open semantics)
+        """
+        return self.derived_dir / "window_embeddings"
+
+    @property
+    def window_embeddings_fullinfo_dir(self) -> Path:
+        return self.window_embeddings_dir / "fullinfo"
+
+    @property
+    def window_embeddings_openonly_dir(self) -> Path:
+        return self.window_embeddings_dir / "openonly"
+
+    @property
     def models_dir(self) -> Path:
         return self.data_dir / "models"
+
+    @property
+    def patterns_dir(self) -> Path:
+        """
+        Stack 4: per-pattern artifacts (examples/confusers/prototypes/thresholds).
+        """
+        return self.data_dir / "patterns"
 
     @property
     def raw_by_date_dir(self) -> Path:
@@ -105,7 +131,11 @@ def ensure_dirs(paths: DataPaths) -> None:
     paths.raw_by_date_dir.mkdir(parents=True, exist_ok=True)
     paths.polygon_grouped_daily_dir.mkdir(parents=True, exist_ok=True)
     paths.derived_dir.mkdir(parents=True, exist_ok=True)
+    paths.window_embeddings_dir.mkdir(parents=True, exist_ok=True)
+    paths.window_embeddings_fullinfo_dir.mkdir(parents=True, exist_ok=True)
+    paths.window_embeddings_openonly_dir.mkdir(parents=True, exist_ok=True)
     paths.models_dir.mkdir(parents=True, exist_ok=True)
+    paths.patterns_dir.mkdir(parents=True, exist_ok=True)
     paths.logs_dir.mkdir(parents=True, exist_ok=True)
 
 

@@ -5,9 +5,10 @@ from typing import Any, Iterable, Literal
 
 import numpy as np
 import pandas as pd
+import warnings
 
 
-NormalizationMode = Literal["none", "per_window_zscore", "returns_relative", "global_fit"]
+NormalizationMode = Literal["none", "per_window_zscore", "per_window_robust_zscore", "returns_relative", "global_fit"]
 
 
 @dataclass(frozen=True)
@@ -29,14 +30,57 @@ class GlobalFitStats:
 
 
 def _nanmean(x: np.ndarray, mask: np.ndarray, axis: Any) -> np.ndarray:
-    # mask=True means valid
-    x2 = np.where(mask, x, np.nan)
-    return np.nanmean(x2, axis=axis)
+    """
+    Mean over `axis` ignoring masked values.
+
+    Unlike `np.nanmean(np.where(mask, x, np.nan))`, this avoids RuntimeWarnings
+    ("Mean of empty slice") for fully-masked slices by returning 0.0 for them.
+    """
+    m = np.asarray(mask, dtype=bool)
+    x0 = np.where(m, x, 0.0)
+    cnt = m.sum(axis=axis).astype(float)
+    denom = np.where(cnt > 0, cnt, 1.0)
+    return x0.sum(axis=axis) / denom
 
 
 def _nanstd(x: np.ndarray, mask: np.ndarray, axis: Any) -> np.ndarray:
+    """
+    Std-dev over `axis` ignoring masked values (population std, ddof=0).
+
+    Avoids RuntimeWarnings from NumPy's nanvar/nanstd for fully-masked slices by
+    returning 0.0 for them.
+    """
+    m = np.asarray(mask, dtype=bool)
+    x0 = np.where(m, x, 0.0)
+    cnt = m.sum(axis=axis).astype(float)
+    denom = np.where(cnt > 0, cnt, 1.0)
+    mean = x0.sum(axis=axis) / denom
+    mean2 = (x0 * x0).sum(axis=axis) / denom
+    var = np.maximum(mean2 - (mean * mean), 0.0)
+    return np.sqrt(var)
+
+
+def _nanmedian(x: np.ndarray, mask: np.ndarray, axis: Any) -> np.ndarray:
     x2 = np.where(mask, x, np.nan)
-    return np.nanstd(x2, axis=axis)
+    # NumPy warns on all-NaN slices; treat them as 0.0 (neutral for normalization).
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=RuntimeWarning, message="All-NaN slice encountered")
+        med = np.nanmedian(x2, axis=axis)
+    return np.nan_to_num(med, nan=0.0)
+
+
+def _nanmad(x: np.ndarray, mask: np.ndarray, axis: Any) -> np.ndarray:
+    """
+    Median absolute deviation (MAD), ignoring masked values.
+    """
+    med = _nanmedian(x, mask, axis=axis)
+    # Broadcast med back to x shape for abs(x - med).
+    if axis == 1:
+        med_b = med[:, None, :]
+    else:
+        med_b = med
+    dev = np.abs(x - med_b)
+    return _nanmedian(dev, mask, axis=axis)
 
 
 def build_standard_batch_from_windowed_long(
@@ -45,6 +89,7 @@ def build_standard_batch_from_windowed_long(
     feature_columns: list[str],
     window_size: int,
     label_column: str = "label",
+    extra_meta_columns: list[str] | None = None,
 ) -> StandardBatch:
     """
     Convert long windowed bars into a dense batch tensor.
@@ -64,6 +109,14 @@ def build_standard_batch_from_windowed_long(
     for c in feature_columns:
         if c not in windowed_df.columns:
             raise ValueError(f"feature column not in windowed_df: {c}")
+
+    extra_meta_columns = extra_meta_columns or []
+    for c in extra_meta_columns:
+        key = str(c).strip()
+        if not key:
+            continue
+        if key not in windowed_df.columns:
+            raise ValueError(f"extra_meta_column not in windowed_df: {key}")
 
     df = windowed_df.sort_values(["sample_id", "t"]).reset_index(drop=True)
     T = int(window_size)
@@ -97,6 +150,13 @@ def build_standard_batch_from_windowed_long(
         "asof_date": first.loc[sample_ids, "asof_date"].astype("datetime64[ns]").to_numpy(),
         "setup": first.loc[sample_ids, "setup"].astype(str).to_numpy(),
     }
+
+    for c in extra_meta_columns:
+        key = str(c).strip()
+        if not key:
+            continue
+        meta[key] = first.loc[sample_ids, key].to_numpy()
+
     return StandardBatch(x_seq=x, mask_seq=mask, y=y, meta=meta)
 
 
@@ -189,6 +249,15 @@ def normalize_batch(
         std = _nanstd(x, mask, axis=1)  # (batch, F)
         std = np.where(std > 0, std, 1.0)
         x = (x - mean[:, None, :]) / std[:, None, :]
+        return StandardBatch(x_seq=x, mask_seq=mask, y=batch.y, meta=batch.meta)
+
+    if mode == "per_window_robust_zscore":
+        # Robust z-score per window: (x - median) / (1.4826 * MAD)
+        med = _nanmedian(x, mask, axis=1)  # (batch, F)
+        mad = _nanmad(x, mask, axis=1)  # (batch, F)
+        scale = 1.4826 * mad
+        scale = np.where(scale > 0, scale, 1.0)
+        x = (x - med[:, None, :]) / scale[:, None, :]
         return StandardBatch(x_seq=x, mask_seq=mask, y=batch.y, meta=batch.meta)
 
     if mode == "global_fit":

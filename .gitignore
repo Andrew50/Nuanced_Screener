@@ -209,6 +209,7 @@ cython_debug/
 data/raw/
 data/raw_by_date/
 data/derived/
+data/models/
 
 # Marimo
 marimo/_static/

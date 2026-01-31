@@ -197,7 +197,23 @@ def get_default_registry() -> dict[str, Runner]:
     # Register only concrete runners we actually implement.
     r1: Runner = ConstantPriorRunner()
     r2: Runner = NoOpWarmRunner()
-    return {r1.name: r1, r2.name: r2}
+    # Optional ML runner(s): import lazily so base CLI works without torch.
+    try:
+        import importlib.util
+
+        if importlib.util.find_spec("torch") is None:
+            raise ImportError("torch not installed")
+        from .ssl.runner_classifier import SSLTCNClassifierRunner
+        from .ssl.runner_pseudo_head import TorchSSLHeadStudentRunner
+        from .torch_models.reranker_head import TorchRerankerHeadRunner
+
+        r3: Runner = SSLTCNClassifierRunner()
+        r5: Runner = TorchSSLHeadStudentRunner()
+        r4: Runner = TorchRerankerHeadRunner()
+        return {r1.name: r1, r2.name: r2, r3.name: r3, r5.name: r5, r4.name: r4}
+    except Exception:
+        # If torch (or other ML deps) aren't installed, just omit the runner.
+        return {r1.name: r1, r2.name: r2}
 
 
 def resolve_model_types(model_type: str, registry: dict[str, Runner]) -> list[str]:

@@ -60,3 +60,18 @@ def last_n_trading_days_ending_at(day: date, n: int, cal: TradingCalendar) -> li
         return []
     return days[-n:]
 
+
+def next_n_trading_days_starting_after(day: date, n: int, cal: TradingCalendar) -> list[date]:
+    """
+    Return the next n trading days strictly after `day`, in chronological order.
+    """
+    if n <= 0:
+        return []
+    # Search enough window to include n trading days after `day`.
+    start = day + timedelta(days=1)
+    end = day + timedelta(days=30 + 3 * n)
+    days = cal.valid_trading_days(start, end)
+    if not days:
+        return []
+    return days[:n]
+

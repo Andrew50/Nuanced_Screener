@@ -24,6 +24,9 @@ dependencies = [
 dev = [
   "pytest>=8.0.0",
 ]
+ml = [
+  "torch>=2.0",
+]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
