@@ -1074,6 +1074,13 @@ def pretrain(
     resume_from: Optional[Path] = typer.Option(
         None, "--resume-from", exists=True, file_okay=False, help="Resume an existing pretrain run_dir."
     ),
+    reuse_windowed_from: Optional[Path] = typer.Option(
+        None,
+        "--reuse-windowed-from",
+        exists=True,
+        file_okay=False,
+        help="Reuse precomputed windowed data from another pretrain run_dir (faster sweeps).",
+    ),
     num_samples: int = typer.Option(5000, "--num-samples"),
     window_max: int = typer.Option(96, "--window-max", help="Max window length used for window building."),
     crop_length: list[int] = typer.Option([64, 96], "--crop-length", help="Crop lengths used during training."),
@@ -1158,6 +1165,9 @@ def pretrain(
     sampling_payload: dict[str, object] = {}
     model_type = "ssl_tcn_masked_pretrain"
 
+    if resume_from is not None and reuse_windowed_from is not None:
+        raise typer.BadParameter("Use only one of --resume-from or --reuse-windowed-from")
+
     if resume_from is not None:
         run_dir = Path(resume_from)
         if not (run_dir / "pretrain_windowed_bars.parquet").exists():
@@ -1193,6 +1203,51 @@ def pretrain(
 
         # Recompute config with schema window size (doesn't affect run_dir path).
         cfg = _config(repo_root=repo_root, window_size=int(window_max), duckdb_threads=duckdb_threads)
+    elif reuse_windowed_from is not None:
+        src_dir = Path(reuse_windowed_from)
+        src_windowed = src_dir / "pretrain_windowed_bars.parquet"
+        if not src_windowed.exists():
+            raise typer.BadParameter("--reuse-windowed-from must contain pretrain_windowed_bars.parquet")
+        windowed_path = src_windowed
+        try:
+            sampling_payload = json.loads((src_dir / "sampling.json").read_text(encoding="utf-8"))
+        except Exception:
+            sampling_payload = {}
+
+        # If possible, align window_max with the source schema (to avoid reshape mismatch).
+        try:
+            sch = read_schema(src_dir / "schema.json")
+            window_max = int(sch.window_max)
+            cfg = _config(repo_root=repo_root, window_size=int(window_max), duckdb_threads=duckdb_threads)
+        except Exception:
+            pass
+
+        # New run dir (we do NOT overwrite the source run).
+        rid = _run_id()
+        run_dir = cfg.paths.models_dir / model_type / "_pretrain" / rid
+        run_dir.mkdir(parents=True, exist_ok=True)
+        write_run_meta(
+            run_dir,
+            repo_root=repo_root,
+            extra={
+                "command": "ns models pretrain",
+                "model_type": model_type,
+                "run_id": rid,
+                "reuse_windowed_from": str(src_dir),
+            },
+        )
+        (run_dir / "windowed_source.json").write_text(
+            json.dumps(
+                {
+                    "reuse_windowed_from": str(src_dir),
+                    "windowed_path": str(src_windowed),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
     else:
         start_d = _parse_ymd(date_start, "--date-start")
         end_d = _parse_ymd(date_end, "--date-end")
@@ -1338,7 +1393,27 @@ def pretrain(
     model.train(True)
     opt = torch.optim.Adam(model.parameters(), lr=float(lr))
     use_amp = bool(amp) and (str(dev.type).lower() == "cuda")
-    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
+    import contextlib
+
+    if use_amp:
+        # Prefer non-deprecated torch.amp API; fall back for older torch builds.
+        try:
+            scaler = torch.amp.GradScaler("cuda")
+
+            def _autocast():  # noqa: ANN001
+                return torch.amp.autocast("cuda")
+
+        except Exception:
+            scaler = torch.cuda.amp.GradScaler(enabled=True)
+
+            def _autocast():  # noqa: ANN001
+                return torch.cuda.amp.autocast(enabled=True)
+
+    else:
+        scaler = None
+
+        def _autocast():  # noqa: ANN001
+            return contextlib.nullcontext()
 
     crop_cfg = CropConfig(crop_lengths=tuple(int(x) for x in crop_length))
     jit_cfg = JitterConfig(sigma=float(jitter_sigma))
@@ -1434,12 +1509,13 @@ def pretrain(
                     xt = torch.from_numpy(x_in).to(dev)
                     mt = torch.from_numpy(vmask).to(dev)
 
-                    with torch.cuda.amp.autocast(enabled=use_amp):
+                    with _autocast():
                         loss_t, _recon, _m = model.forward(xt, mt, rng=rng)
 
                     # Accumulate gradients over microbatches.
                     loss_scaled = loss_t / float(grad_accum_steps)
                     if use_amp:
+                        assert scaler is not None
                         scaler.scale(loss_scaled).backward()
                     else:
                         loss_scaled.backward()
@@ -1453,9 +1529,11 @@ def pretrain(
                     if accum >= grad_accum_steps:
                         # Step optimizer.
                         if use_amp:
+                            assert scaler is not None
                             scaler.unscale_(opt)
                         torch.nn.utils.clip_grad_norm_(list(model.parameters()), max_norm=1.0)
                         if use_amp:
+                            assert scaler is not None
                             scaler.step(opt)
                             scaler.update()
                         else:

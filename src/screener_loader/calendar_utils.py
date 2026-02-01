@@ -12,16 +12,33 @@ class TradingCalendar:
         """
         Return trading days inclusive in [start, end] using NYSE calendar.
         """
+        # Prefer `exchange_calendars` when available:
+        # - avoids some pandas_market_calendars / pandas version edge cases
+        # - tends to be more stable and faster for simple session queries
         try:
-            import pandas_market_calendars as mcal
+            import exchange_calendars as xcals  # type: ignore
+            import pandas as pd  # type: ignore
+
+            code_map = {"NYSE": "XNYS", "NASDAQ": "XNAS"}
+            code = code_map.get(str(self.name).upper(), str(self.name))
+            cal = xcals.get_calendar(code)
+            sessions = cal.sessions_in_range(pd.Timestamp(start), pd.Timestamp(end))
+            # sessions is a pandas.DatetimeIndex (naive, UTC-midnight-ish). Convert to python dates.
+            return [d.date() for d in sessions.to_pydatetime()]
+        except Exception:
+            pass
+
+        # Fallback: pandas_market_calendars
+        try:
+            import pandas_market_calendars as mcal  # type: ignore
         except Exception as e:  # pragma: no cover
             raise RuntimeError(
-                "pandas_market_calendars is required for date-mode updates. "
-                "Install with `pip install pandas_market_calendars`."
+                "A market calendar backend is required. Install with:\n"
+                "- `pip install exchange_calendars` (preferred)\n"
+                "- or `pip install pandas_market_calendars`\n"
             ) from e
 
         cal = mcal.get_calendar(self.name)
-        # valid_days returns tz-aware timestamps. Convert to date.
         days = cal.valid_days(start_date=start.isoformat(), end_date=end.isoformat())
         return [d.date() for d in days.to_pydatetime()]
 
