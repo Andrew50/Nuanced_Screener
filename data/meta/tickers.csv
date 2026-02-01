@@ -961,7 +961,6 @@ BLZRU,Trailblazer Acquisition Corp. - Unit,NASDAQ,False,False,nasdaqlisted.txt
 BLZRW,Trailblazer Acquisition Corp. - Warrant,NASDAQ,False,False,nasdaqlisted.txt
 BMAX,REX Bitcoin Corporate Treasury Convertible Bond ETF,NASDAQ,True,False,nasdaqlisted.txt
 BMBL,Bumble Inc. - common stock,NASDAQ,False,False,nasdaqlisted.txt
-BMDL,VictoryShares WestEnd Economic Cycle Bond ETF,NASDAQ,True,False,nasdaqlisted.txt
 BMEA,"Biomea Fusion, Inc. - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
 BMGL,Basel Medical Group Ltd - ordinary shares,NASDAQ,False,False,nasdaqlisted.txt
 BMHL,Bluemount Holdings Limited - Class B Ordinary Shares,NASDAQ,False,False,nasdaqlisted.txt
@@ -1316,7 +1315,6 @@ CIFR,Cipher Mining Inc. - Common Stock,NASDAQ,False,False,nasdaqlisted.txt
 CIGI,Colliers International Group Inc.  - Subordinate Voting Shares,NASDAQ,False,False,nasdaqlisted.txt
 CIGL,Concorde International Group Ltd - Class A Ordinary Shares,NASDAQ,False,False,nasdaqlisted.txt
 CIIT,"Tianci International, Inc. - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
-CIL,VictoryShares International Volatility Wtd ETF,NASDAQ,True,False,nasdaqlisted.txt
 CINF,Cincinnati Financial Corporation - Common Stock,NASDAQ,False,False,nasdaqlisted.txt
 CING,Cingulate Inc. - Common Stock,NASDAQ,False,False,nasdaqlisted.txt
 CINGW,Cingulate Inc. - Warrants,NASDAQ,False,False,nasdaqlisted.txt
@@ -1764,6 +1762,7 @@ EDRY,EuroDry Ltd. - Common Shares,NASDAQ,False,False,nasdaqlisted.txt
 EDSA,"Edesa Biotech, Inc. - Common Shares",NASDAQ,False,False,nasdaqlisted.txt
 EDTK,Skillful Craftsman Education Technology Limited - Ordinary Share,NASDAQ,False,False,nasdaqlisted.txt
 EDUC,Educational Development Corporation - Common Stock,NASDAQ,False,False,nasdaqlisted.txt
+EEE,CYBER HORNET S&P 500 and Ethereum 75/25 Strategy ETF,NASDAQ,True,False,nasdaqlisted.txt
 EEFT,"Euronet Worldwide, Inc. - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
 EEIQ,EpicQuest Education Group International Limited - Common Stock,NASDAQ,False,False,nasdaqlisted.txt
 EEMA,iShares MSCI Emerging Markets Asia ETF,NASDAQ,True,False,nasdaqlisted.txt
@@ -2458,7 +2457,6 @@ HDL,SUPER HI INTERNATIONAL HOLDING LTD. - American Depositary Shares,NASDAQ,Fals
 HDSN,"Hudson Technologies, Inc. - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
 HEAL,Global X HealthTech ETF,NASDAQ,True,False,nasdaqlisted.txt
 HECO,SPDR Galaxy Hedged Digital Asset Ecosystem ETF,NASDAQ,True,False,nasdaqlisted.txt
-HEJD,VictoryShares Hedged Equity Income ETF,NASDAQ,True,False,nasdaqlisted.txt
 HELE,Helen of Troy Limited - Common Stock,NASDAQ,False,False,nasdaqlisted.txt
 HELP,Cybin Inc. - Common Stock,NASDAQ,False,False,nasdaqlisted.txt
 HEPS,D-Market Electronic Services & Trading - American Depositary Shares,NASDAQ,False,False,nasdaqlisted.txt
@@ -2993,7 +2991,6 @@ LAFAU,LaFayette Acquisition Corp. - Unit,NASDAQ,False,False,nasdaqlisted.txt
 LAKE,"Lakeland Industries, Inc. - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
 LAMR,Lamar Advertising Company - Class A Common Stock,NASDAQ,False,False,nasdaqlisted.txt
 LAND,Gladstone Land Corporation - Common Stock,NASDAQ,False,False,nasdaqlisted.txt
-LANDM,Gladstone Land Corporation - 5.00% Series D Cumulative Term Preferred Stock,NASDAQ,False,False,nasdaqlisted.txt
 LANDO,Gladstone Land Corporation - 6.00% Series B Cumulative Redeemable Preferred Stock,NASDAQ,False,False,nasdaqlisted.txt
 LANDP,Gladstone Land Corporation - 6.00% Series C Cumulative Redeemable Preferred Stock,NASDAQ,False,False,nasdaqlisted.txt
 LARK,Landmark Bancorp Inc. - Common Stock,NASDAQ,False,False,nasdaqlisted.txt
@@ -3149,7 +3146,7 @@ LRND,NYLI U.S. Large Cap R&D Leaders ETF,NASDAQ,True,False,nasdaqlisted.txt
 LSAK,"Lesaka Technologies, Inc. - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
 LSBK,"Lake Shore Bancorp, Inc. - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
 LSCC,Lattice Semiconductor Corporation - Common Stock,NASDAQ,False,False,nasdaqlisted.txt
-LSE,"Leishen Energy Holding Co., Ltd. - Ordinary Shares",NASDAQ,False,False,nasdaqlisted.txt
+LSE,"Leishen Energy Holding Co., Ltd. - Class A Ordinary Shares",NASDAQ,False,False,nasdaqlisted.txt
 LSH,Lakeside Holding Limited - Common Stock,NASDAQ,False,False,nasdaqlisted.txt
 LSTA,"Lisata Therapeutics, Inc. - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
 LSTR,"Landstar System, Inc. - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
@@ -3276,7 +3273,9 @@ MEMS,Matthews Emerging Markets Discovery Active ETF,NASDAQ,True,False,nasdaqlist
 MENS,Jyong Biotech Ltd. - Ordinary shares,NASDAQ,False,False,nasdaqlisted.txt
 MEOH,Methanex Corporation - Common Stock,NASDAQ,False,False,nasdaqlisted.txt
 MERC,Mercer International Inc. - Common Stock,NASDAQ,False,False,nasdaqlisted.txt
+MESH,Meshflow Acquisition Corp. - Class A Ordinary Shares,NASDAQ,False,False,nasdaqlisted.txt
 MESHU,Meshflow Acquisition Corp. - Units,NASDAQ,False,False,nasdaqlisted.txt
+MESHW,Meshflow Acquisition Corp. - Warrants,NASDAQ,False,False,nasdaqlisted.txt
 MESO,Mesoblast Limited - American Depositary Shares,NASDAQ,False,False,nasdaqlisted.txt
 META,"Meta Platforms, Inc. - Class A Common Stock",NASDAQ,False,False,nasdaqlisted.txt
 METC,"Ramaco Resources, Inc. - Class A Common Stock",NASDAQ,False,False,nasdaqlisted.txt
@@ -3286,6 +3285,7 @@ METCZ,"Ramaco Resources, Inc. - 8.375% Senior Notes due 2029",NASDAQ,False,False
 METD,Direxion Daily META Bear 1X Shares,NASDAQ,True,False,nasdaqlisted.txt
 METL,Sprott Active Metals & Miners ETF,NASDAQ,True,False,nasdaqlisted.txt
 METU,Direxion Daily META Bull 2X Shares,NASDAQ,True,False,nasdaqlisted.txt
+MEVOU,M Evo Global Acquisition Corp II - Units,NASDAQ,False,False,nasdaqlisted.txt
 MFI,mF International Limited - Class A Ordinary Shares,NASDAQ,False,False,nasdaqlisted.txt
 MFIC,MidCap Financial Investment Corporation - Closed End Fund,NASDAQ,False,False,nasdaqlisted.txt
 MFICL,MidCap Financial Investment Corporation - 8.00% Notes due 2028,NASDAQ,False,False,nasdaqlisted.txt
@@ -3429,6 +3429,7 @@ MUD,Direxion Daily MU Bear 1X Shares,NASDAQ,True,False,nasdaqlisted.txt
 MULL,GraniteShares 2x Long MU Daily ETF,NASDAQ,True,False,nasdaqlisted.txt
 MULT,Franklin Multisector Income ETF,NASDAQ,True,False,nasdaqlisted.txt
 MUU,Direxion Daily MU Bull 2X Shares,NASDAQ,True,False,nasdaqlisted.txt
+MUZEU,Muzero Acquisition Corp - Unit,NASDAQ,False,False,nasdaqlisted.txt
 MVBF,MVB Financial Corp. - Common Stock,NASDAQ,False,False,nasdaqlisted.txt
 MVIS,"MicroVision, Inc. - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
 MVLL,GraniteShares 2x Long MRVL Daily ETF,NASDAQ,True,False,nasdaqlisted.txt
@@ -3487,6 +3488,7 @@ NBIS,Nebius Group N.V. - Class A Ordinary Shares,NASDAQ,False,False,nasdaqlisted
 NBIX,"Neurocrine Biosciences, Inc. - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
 NBN,Northeast Bank - Common Stock,NASDAQ,False,False,nasdaqlisted.txt
 NBP,NovaBridge Biosciences - American Depositary Shares,NASDAQ,False,False,nasdaqlisted.txt
+NBRGU,Newbridge Acquisition Limited - Unit,NASDAQ,False,False,nasdaqlisted.txt
 NBTB,NBT Bancorp Inc. - Common Stock,NASDAQ,False,False,nasdaqlisted.txt
 NBTX,Nanobiotix S.A. - ADSs,NASDAQ,False,False,nasdaqlisted.txt
 NCEL,NewcelX Ltd. - Ordinary Shares,NASDAQ,False,False,nasdaqlisted.txt
@@ -3527,7 +3529,6 @@ NEWTH,"NewtekOne, Inc. - 8.625% Fixed Rate Senior Notes due 2029",NASDAQ,False,F
 NEWTI,"NewtekOne, Inc. - 8.00% Fixed Rate Senior Notes due 2028",NASDAQ,False,False,nasdaqlisted.txt
 NEWTO,"NewtekOne, Inc. - 8.50% Fixed Rate Senior Notes due 2031",NASDAQ,False,False,nasdaqlisted.txt
 NEWTP,"NewtekOne, Inc. - Depositary Shares, Each Representing a 1/40th Interest in a Share of 8.500% Fixed Rate Reset Non-Cumulative Perpetual Preferred Stock, Series B",NASDAQ,False,False,nasdaqlisted.txt
-NEWTZ,"NewtekOne, Inc. - 5.50% Notes Due 2026",NASDAQ,False,False,nasdaqlisted.txt
 NEWZ,StockSnips AI-Powered Sentiment US All Cap ETF,NASDAQ,True,False,nasdaqlisted.txt
 NEXM,NexMetals Mining Corp. - Common Stock,NASDAQ,False,False,nasdaqlisted.txt
 NEXN,Nexxen International Ltd. - Ordinary Shares,NASDAQ,False,False,nasdaqlisted.txt
@@ -3535,6 +3536,7 @@ NEXT,NextDecade Corporation - Common Stock,NASDAQ,False,False,nasdaqlisted.txt
 NFBK,"Northfield Bancorp, Inc. - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
 NFE,New Fortress Energy Inc. - Class A Common Stock,NASDAQ,False,False,nasdaqlisted.txt
 NFLX,"Netflix, Inc. - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
+NFRX,Harrison Street Infrastructure Active ETF,NASDAQ,True,False,nasdaqlisted.txt
 NFTY,First Trust India Nifty 50 Equal Weight ETF,NASDAQ,True,False,nasdaqlisted.txt
 NFXL,Direxion Daily NFLX Bull 2X Shares,NASDAQ,True,False,nasdaqlisted.txt
 NFXS,Direxion Daily NFLX Bear 1X Shares,NASDAQ,True,False,nasdaqlisted.txt
@@ -3884,7 +3886,7 @@ PAYX,"Paychex, Inc. - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
 PBEU,Portfolio Building Block European Banks Index ETF,NASDAQ,True,False,nasdaqlisted.txt
 PBFS,"Pioneer Bancorp, Inc. - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
 PBHC,"Pathfinder Bancorp, Inc. - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
-PBM,Psyence Biomedical Ltd. - Ordinary Shares,NASDAQ,False,False,nasdaqlisted.txt
+PBM,Psyence Biomedical Ltd. - Common Shares,NASDAQ,False,False,nasdaqlisted.txt
 PBMWW,Psyence Biomedical Ltd. - Warrant,NASDAQ,False,False,nasdaqlisted.txt
 PBOG,Portfolio Building Block Integrated Oil and Gas and Exploration and Production Index ETF,NASDAQ,True,False,nasdaqlisted.txt
 PBPH,Portfolio Building Block World Pharma and Biotech Index ETF,NASDAQ,True,False,nasdaqlisted.txt
@@ -3968,7 +3970,7 @@ PHOE,Phoenix Asia Holdings Limited - Ordinary Shares,NASDAQ,False,False,nasdaqli
 PHUN,"Phunware, Inc. - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
 PHVS,Pharvaris N.V. - Ordinary Shares,NASDAQ,False,False,nasdaqlisted.txt
 PI,"Impinj, Inc. - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
-PICS,Picpay Holdings Netherlands N.V. - Class A Common Shares,NASDAQ,False,False,nasdaqlisted.txt
+PICS,PicS N.V. - Class A Common Shares,NASDAQ,False,False,nasdaqlisted.txt
 PID,Invesco International Dividend Achievers ETF,NASDAQ,True,False,nasdaqlisted.txt
 PIE,Invesco Dorsey Wright Emerging Markets Momentum ETF,NASDAQ,True,False,nasdaqlisted.txt
 PIII,P3 Health Partners Inc. - Class A Common Stock,NASDAQ,False,False,nasdaqlisted.txt
@@ -4759,6 +4761,7 @@ SSM,Sono Group N.V. - Ordinary Shares,NASDAQ,False,False,nasdaqlisted.txt
 SSNC,"SS&C Technologies Holdings, Inc. - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
 SSP,E.W. Scripps Company (The) - Class A Common Stock,NASDAQ,False,False,nasdaqlisted.txt
 SSRM,SSR Mining Inc. - Common Stock,NASDAQ,False,False,nasdaqlisted.txt
+SSS,CYBER HORNET S&P 500 and Solana 75/25 Strategy ETF,NASDAQ,True,False,nasdaqlisted.txt
 SSSS,SuRo Capital Corp. - Closed End Fund,NASDAQ,False,False,nasdaqlisted.txt
 SSSSL,SuRo Capital Corp. - 6.00% Notes due 2026,NASDAQ,False,False,nasdaqlisted.txt
 SSTI,"SoundThinking, Inc. - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
@@ -5253,6 +5256,7 @@ VGSR,Vert Global Sustainable Real Estate ETF,NASDAQ,True,False,nasdaqlisted.txt
 VGUS,Vanguard Ultra-Short Treasury ETF,NASDAQ,True,False,nasdaqlisted.txt
 VHC,VirnetX Holding Corp - Common Stock,NASDAQ,False,False,nasdaqlisted.txt
 VHCPU,Vine Hill Capital Investment Corp. II - Units,NASDAQ,False,False,nasdaqlisted.txt
+VHUB,"VenHub Global, Inc. - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
 VIASP,"Via Renewables, Inc. - 8.75% Series A Fixed-to-Floating Rate Cumulative Redeemable Perpetual Preferred Stock",NASDAQ,False,False,nasdaqlisted.txt
 VIAV,Viavi Solutions Inc. - Common Stock,NASDAQ,False,False,nasdaqlisted.txt
 VICR,Vicor Corporation - Common Stock,NASDAQ,False,False,nasdaqlisted.txt
@@ -5509,6 +5513,7 @@ XTLB,XTL Biopharmaceuticals Ltd. - American Depositary Shares,NASDAQ,False,False
 XWEL,"XWELL, Inc. - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
 XWIN,"XMAX, Inc. - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
 XXII,"22nd Century Group, Inc - Common Stock",NASDAQ,False,False,nasdaqlisted.txt
+XXX,CYBER HORNET S&P 500 and XRP 75/25 Strategy ETF,NASDAQ,True,False,nasdaqlisted.txt
 XYZG,Leverage Shares 2X Long XYZ Daily ETF,NASDAQ,True,False,nasdaqlisted.txt
 YAAS,Youxin Technology Ltd - Class A Ordinary shares,NASDAQ,False,False,nasdaqlisted.txt
 YB,Yuanbao Inc. - American Depositary Shares,NASDAQ,False,False,nasdaqlisted.txt
@@ -6173,7 +6178,6 @@ CIMO,Chimera Investment Corporation 9.250% Senior Notes due 2029,NYSE,False,Fals
 CIMP,Chimera Investment Corporation 8.875% Senior Notes due 2030,NYSE,False,False,otherlisted.txt
 CINT,CI&T Inc Class A Common Shares,NYSE,False,False,otherlisted.txt
 CION,CION Investment Corporation Common Stock,NYSE,False,False,otherlisted.txt
-CIVI,"Civitas Resources, Inc. Common Stock",NYSE,False,False,otherlisted.txt
 CL,Colgate-Palmolive Company Common Stock,NYSE,False,False,otherlisted.txt
 CLB,Core Laboratories Inc. Common Stock,NYSE,False,False,otherlisted.txt
 CLDT,Chatham Lodging Trust (REIT) Common Shares of Beneficial Interest,NYSE,False,False,otherlisted.txt
@@ -6437,7 +6441,6 @@ ECAT,BlackRock ESG Capital Allocation Term Trust Common Shares of Beneficial Int
 ECC,Eagle Point Credit Company Inc. Common Stock,NYSE,False,False,otherlisted.txt
 ECC$D,Eagle Point Credit Company Inc. 6.75% Series D Preferred Stock,NYSE,False,False,otherlisted.txt
 ECCC,Eagle Point Credit Company Inc. 6.50% Series C Term Preferred Stock due 2031,NYSE,False,False,otherlisted.txt
-ECCF,Eagle Point Credit Company Inc. 8.00% Series F Term Preferred Stock due 2029,NYSE,False,False,otherlisted.txt
 ECCU,Eagle Point Credit Company Inc. 7.75% Notes due 2030,NYSE,False,False,otherlisted.txt
 ECCV,Eagle Point Credit Company Inc. 5.375% Notes due 2029,NYSE,False,False,otherlisted.txt
 ECCW,Eagle Point Credit Company Inc. 6.75% Notes due 2031,NYSE,False,False,otherlisted.txt

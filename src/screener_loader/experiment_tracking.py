@@ -312,7 +312,15 @@ def write_index(df: pd.DataFrame, *, out_path: Path) -> Path:
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if out_path.suffix.lower() == ".parquet":
-        df.to_parquet(out_path, index=False)
+        try:
+            df.to_parquet(out_path, index=False)
+        except Exception as e:  # noqa: BLE001
+            # Common failure mode: pyarrow missing.
+            raise RuntimeError(
+                "Failed to write index as Parquet. Install `pyarrow` (recommended) or pass `--out ...csv`.\n"
+                f"- out_path={out_path}\n"
+                f"- error={type(e).__name__}: {e}"
+            ) from e
     elif out_path.suffix.lower() == ".csv":
         df.to_csv(out_path, index=False)
     elif out_path.suffix.lower() in {".jsonl", ".ndjson"}:

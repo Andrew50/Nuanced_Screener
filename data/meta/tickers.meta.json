@@ -8,10 +8,10 @@
       "AMEX"
     ]
   },
-  "row_count": 8471,
+  "row_count": 8474,
   "source_urls": [
     "https://www.nasdaqtrader.com/dynamic/symdir/nasdaqlisted.txt",
     "https://www.nasdaqtrader.com/dynamic/symdir/otherlisted.txt"
   ],
-  "universe_version": "2026-01-30T00:50:49.607297+00:00"
+  "universe_version": "2026-01-31T06:38:47.373109+00:00"
 }

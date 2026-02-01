@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 import typer
 from rich import print
+from .dotenv import load_dotenv
 from .progress import progress_ctx
 from .experiment_tracking import (
     index_models_dir,
@@ -148,21 +149,21 @@ def update(
     start_date: Optional[str] = typer.Option(None, "--start-date", help="YYYY-MM-DD"),
     end_date: Optional[str] = typer.Option(None, "--end-date", help="YYYY-MM-DD"),
     full_refresh: bool = typer.Option(False, "--full-refresh"),
-    batch_size: int = typer.Option(50, "--batch-size"),
-    processes: int = typer.Option(8, "--processes"),
-    executor: str = typer.Option("threads", "--executor"),
-    pause_seconds: float = typer.Option(0.0, "--pause-seconds"),
-    max_retries: int = typer.Option(3, "--max-retries"),
-    timeout_seconds: float = typer.Option(30.0, "--timeout-seconds"),
+    batch_size: int = typer.Option(50, "--batch-size", envvar="NS_BATCH_SIZE"),
+    processes: int = typer.Option(8, "--processes", envvar="NS_PROCESSES"),
+    executor: str = typer.Option("threads", "--executor", envvar="NS_EXECUTOR"),
+    pause_seconds: float = typer.Option(0.0, "--pause-seconds", envvar="NS_PAUSE_SECONDS"),
+    max_retries: int = typer.Option(3, "--max-retries", envvar="NS_MAX_RETRIES"),
+    timeout_seconds: float = typer.Option(30.0, "--timeout-seconds", envvar="NS_TIMEOUT_SECONDS"),
     fail_fast: bool = typer.Option(False, "--fail-fast"),
     window_size: int = typer.Option(100, "--window-size"),
     feature_columns: list[str] = typer.Option([], "--feature-column"),
-    duckdb_threads: int = typer.Option(4, "--duckdb-threads"),
-    lookback_years: int = typer.Option(2, "--lookback-years", help="Polygon date-mode: years to backfill."),
+    duckdb_threads: int = typer.Option(4, "--duckdb-threads", envvar="NS_DUCKDB_THREADS"),
+    lookback_years: int = typer.Option(2, "--lookback-years", envvar="NS_LOOKBACK_YEARS", help="Polygon date-mode: years to backfill."),
     refresh_tail_days: int = typer.Option(3, "--refresh-tail-days", help="Polygon date-mode: re-fetch last N trading days."),
     adjusted: bool = typer.Option(True, "--adjusted/--unadjusted", help="Polygon: adjusted prices."),
     include_otc: bool = typer.Option(False, "--include-otc/--exclude-otc", help="Polygon: include OTC tickers."),
-    calls_per_minute: int = typer.Option(5, "--calls-per-minute", help="Polygon free tier: max calls per minute."),
+    calls_per_minute: int = typer.Option(5, "--calls-per-minute", envvar="NS_CALLS_PER_MINUTE", help="Polygon free tier: max calls per minute."),
 ) -> None:
     cfg = _config(
         repo_root=repo_root,
@@ -194,7 +195,7 @@ def rebuild_last100(
     repo_root: Path = typer.Option(Path("."), "--repo-root"),
     window_size: int = typer.Option(100, "--window-size"),
     feature_columns: list[str] = typer.Option([], "--feature-column"),
-    duckdb_threads: int = typer.Option(4, "--duckdb-threads"),
+    duckdb_threads: int = typer.Option(4, "--duckdb-threads", envvar="NS_DUCKDB_THREADS"),
 ) -> None:
     cfg = _config(
         repo_root=repo_root,
@@ -224,7 +225,7 @@ def candidates_latest(
     end_lookback_bars: int = typer.Option(7, "--end-lookback-bars"),
     limit: int = typer.Option(200, "--limit", help="Print top-N rows (0=print none)."),
     out: Optional[Path] = typer.Option(None, "--out", help="Optional output parquet path."),
-    duckdb_threads: int = typer.Option(4, "--duckdb-threads"),
+    duckdb_threads: int = typer.Option(4, "--duckdb-threads", envvar="NS_DUCKDB_THREADS"),
 ) -> None:
     """
     Generate high-recall heuristic candidates over the latest window per ticker.
@@ -261,7 +262,7 @@ def weak_build_candidate_pool(
     min_dollar_vol: float = typer.Option(0.0, "--min-dollar-vol"),
     max_candidates: int = typer.Option(0, "--max-candidates", help="0=unlimited; otherwise keep top-N by recency/liquidity."),
     out: Optional[Path] = typer.Option(None, "--out", help="Output parquet path."),
-    duckdb_threads: int = typer.Option(4, "--duckdb-threads"),
+    duckdb_threads: int = typer.Option(4, "--duckdb-threads", envvar="NS_DUCKDB_THREADS"),
 ) -> None:
     """
     Build a reusable candidate pool parquet for weak supervision.
@@ -301,7 +302,7 @@ def weak_generate_pseudo(
     label_def_version: str = typer.Option("v1", "--label-def-version"),
     max_candidates: int = typer.Option(0, "--max-candidates", help="0=use all rows in candidate_pool; else head-N."),
     out_dir: Optional[Path] = typer.Option(None, "--out-dir", help="Output directory for artifacts."),
-    duckdb_threads: int = typer.Option(4, "--duckdb-threads"),
+    duckdb_threads: int = typer.Option(4, "--duckdb-threads", envvar="NS_DUCKDB_THREADS"),
 ) -> None:
     """
     Generate pseudo labels from weak heuristics + a label model.
@@ -451,7 +452,7 @@ def weak_suggest_gold(
     num_uncertain: int = typer.Option(100, "--num-uncertain"),
     num_pos_spotcheck: int = typer.Option(50, "--num-pos-spotcheck"),
     out: Optional[Path] = typer.Option(None, "--out", help="Output CSV path for manual labeling."),
-    duckdb_threads: int = typer.Option(4, "--duckdb-threads"),
+    duckdb_threads: int = typer.Option(4, "--duckdb-threads", envvar="NS_DUCKDB_THREADS"),
 ) -> None:
     """
     Suggest a small gold-label batch from a large candidate pool.
@@ -544,10 +545,12 @@ def _run_id() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
-def _load_windowed_for_sample_ids(cfg: LoaderConfig, windowed_path: Path, sample_ids: list[str]) -> pd.DataFrame:
+def _load_windowed_for_sample_ids(
+    cfg: LoaderConfig, windowed_path: Path, sample_ids: list[str], *, con=None  # noqa: ANN001
+) -> pd.DataFrame:
     if not sample_ids:
         return pd.DataFrame()
-    con = connect(cfg)
+    con = connect(cfg) if con is None else con
     ids = pd.DataFrame({"sample_id": [str(x) for x in sample_ids]})
     con.register("ids", ids)
     return con.execute(
@@ -581,7 +584,7 @@ def train(
     test_frac: float = typer.Option(0.15, "--test-frac"),
     seed: int = typer.Option(1337, "--seed"),
     threshold: float = typer.Option(0.5, "--threshold"),
-    duckdb_threads: int = typer.Option(4, "--duckdb-threads"),
+    duckdb_threads: int = typer.Option(4, "--duckdb-threads", envvar="NS_DUCKDB_THREADS"),
     resolve_non_trading: str = typer.Option("error", "--resolve-nontrading", help="error|previous|next"),
     dedupe: str = typer.Option("error", "--dedupe", help="error|keep_first|keep_last"),
     encoder_dir: Optional[Path] = typer.Option(None, "--encoder-dir", exists=True, file_okay=False, dir_okay=True),
@@ -1068,6 +1071,9 @@ def index(
 @models_app.command()
 def pretrain(
     repo_root: Path = typer.Option(Path("."), "--repo-root"),
+    resume_from: Optional[Path] = typer.Option(
+        None, "--resume-from", exists=True, file_okay=False, help="Resume an existing pretrain run_dir."
+    ),
     num_samples: int = typer.Option(5000, "--num-samples"),
     window_max: int = typer.Option(96, "--window-max", help="Max window length used for window building."),
     crop_length: list[int] = typer.Option([64, 96], "--crop-length", help="Crop lengths used during training."),
@@ -1076,7 +1082,7 @@ def pretrain(
     ticker_source: str = typer.Option("universe", "--ticker-source", help="universe|labels_only"),
     labels_csv: Optional[Path] = typer.Option(None, "--labels-csv", exists=True, dir_okay=False),
     seed: int = typer.Option(1337, "--seed"),
-    duckdb_threads: int = typer.Option(4, "--duckdb-threads"),
+    duckdb_threads: int = typer.Option(4, "--duckdb-threads", envvar="NS_DUCKDB_THREADS"),
     # SSL feature/normalization
     include_pos: bool = typer.Option(False, "--include-pos/--no-include-pos", help="Include pos-to-trend feature."),
     normalization: str = typer.Option(
@@ -1101,10 +1107,15 @@ def pretrain(
     lr: float = typer.Option(1e-3, "--lr"),
     max_steps: int = typer.Option(0, "--max-steps", help="Optional cap on total optimizer steps (0=uncapped)."),
     device: str = typer.Option("cpu", "--device", help="cpu|cuda|xpu"),
+    amp: bool = typer.Option(False, "--amp/--no-amp", help="Use AMP when supported (cuda only)."),
+    grad_accum_steps: int = typer.Option(1, "--grad-accum-steps", help="Accumulate gradients for N microbatches."),
+    save_every_steps: int = typer.Option(0, "--save-every-steps", help="Write a resumable checkpoint every N optimizer steps."),
     # Augmentations
     jitter_sigma: float = typer.Option(0.0, "--jitter-sigma"),
     augment_censor_last_prob: float = typer.Option(
-        0.0, "--augment-censor-last-prob", help="Optional: randomly censor the last timestep."
+        1.0,
+        "--augment-censor-last-prob",
+        help="Randomly censor the last timestep (recommended=1.0 to match open-only inference regime).",
     ),
 ) -> None:
     """
@@ -1122,111 +1133,174 @@ def pretrain(
             f"Import error: {type(e).__name__}: {e}"
         ) from e
 
+    # Make pretraining reproducible by default: weight init + any torch-side randomness.
+    # (Mask sampling is already seeded deterministically from the numpy RNG inside masked_modeling.)
+    torch.manual_seed(int(seed))
+    try:
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(int(seed))
+    except Exception:
+        pass
+
     from .ssl.augment import CensorConfig, CropConfig, JitterConfig, jitter, maybe_censor_last_timestep, random_crop
     from .ssl.features import ShapeFeatureSpec, build_shape_features_from_ohlcv_batch
     from .ssl.masked_modeling import MaskedModelingConfig, MaskingConfig, MaskedModelingModel
-    from .ssl.schema import SSLSchema, write_schema
+    from .ssl.schema import SSLSchema, read_schema, write_schema
     from .ssl.tcn import TCNConfig
 
     cfg = _config(repo_root=repo_root, window_size=int(window_max), duckdb_threads=duckdb_threads)
     cal = TradingCalendar("NYSE")
 
-    start_d = _parse_ymd(date_start, "--date-start")
-    end_d = _parse_ymd(date_end, "--date-end")
-    if end_d is None:
-        end_d = latest_trading_day_on_or_before(date.today(), cal)
-    if start_d is None:
-        start_d = subtract_years(end_d, 2)
-
-    if ticker_source == "universe":
-        uni = load_universe(cfg)
-        tickers = uni["ticker"].astype(str).str.upper().tolist()
-    elif ticker_source == "labels_only":
-        if labels_csv is None:
-            raise typer.BadParameter("--labels-csv is required when --ticker-source labels_only")
-        labels_res = load_labels_csv(labels_csv, cal=cal)
-        tickers = sorted(set(labels_res.df["ticker"].astype(str).str.upper().tolist()))
-    else:
-        raise typer.BadParameter("--ticker-source must be universe or labels_only")
-
-    days = cal.valid_trading_days(start_d, end_d)
-    if not days:
-        raise RuntimeError("No trading days in requested pretrain date range")
-
     rng = np.random.default_rng(int(seed))
-    target_n = int(num_samples)
-    seen: set[tuple[str, date]] = set()
-    sampled = []
-    max_draws = max(100, target_n * 25)
-    draws = 0
-    while len(sampled) < target_n and draws < max_draws:
-        draws += 1
-        tkr = tickers[int(rng.integers(0, len(tickers)))]
-        d = days[int(rng.integers(0, len(days)))]
-        key = (tkr, d)
-        if key in seen:
-            continue
-        seen.add(key)
-        sampled.append({"ticker": tkr, "asof_date": d, "setup": "_pretrain", "label": False})
 
-    samples_df = pd.DataFrame(sampled)
-    if samples_df.empty:
-        raise RuntimeError("Failed to sample any unique pretrain windows; widen date range or increase universe size.")
-
-    spec = WindowedBuildSpec(
-        window_size=int(window_max),
-        feature_columns=tuple(),
-        mask_current_day_to_open_only=False,  # SSL pretraining: uncensored
-        require_full_window=True,
-    )
-
-    rid = _run_id()
+    # Resolve run_dir + windowed dataset (fresh run or resume).
+    sampled: list[dict[str, object]] = []
+    sampling_payload: dict[str, object] = {}
     model_type = "ssl_tcn_masked_pretrain"
-    run_dir = cfg.paths.models_dir / model_type / "_pretrain" / rid
-    run_dir.mkdir(parents=True, exist_ok=True)
-    write_run_meta(
-        run_dir,
-        repo_root=repo_root,
-        extra={"command": "ns models pretrain", "model_type": model_type, "run_id": rid},
-    )
-    # Sampling config artifact (documents the unlabeled dataset identity).
-    sample_keys = sorted([f"{r['ticker']}|{r['asof_date'].isoformat()}" for r in sampled])
-    sampling_fingerprint = stable_fingerprint(
-        {
+
+    if resume_from is not None:
+        run_dir = Path(resume_from)
+        if not (run_dir / "pretrain_windowed_bars.parquet").exists():
+            raise typer.BadParameter("--resume-from must point to a pretrain run_dir with pretrain_windowed_bars.parquet")
+        windowed_path = run_dir / "pretrain_windowed_bars.parquet"
+        try:
+            sampling_payload = json.loads((run_dir / "sampling.json").read_text(encoding="utf-8"))
+        except Exception:
+            sampling_payload = {}
+
+        # Best-effort: load schema.json so resume does not depend on re-specifying flags.
+        try:
+            sch = read_schema(run_dir / "schema.json")
+            window_max = int(sch.window_max)
+            crop_length = [int(x) for x in (sch.crop_lengths or [])] or crop_length
+            normalization = str(sch.normalization)
+            mask_mode = [str(x) for x in (sch.mask_mode or [])] or mask_mode
+            mask_rate_time = float(sch.mask_rate_time)
+            mask_rate_feat = float(sch.mask_rate_feat)
+            use_mask_token = bool(sch.use_mask_token)
+            loss = str(sch.loss)
+            huber_delta = float(sch.huber_delta)
+            augment_censor_last_prob = float(sch.augment_censor_last_timestep_prob)
+            include_pos = "pos" in set([str(x) for x in (sch.feature_names or [])])
+
+            enc = sch.encoder or {}
+            d_model = int(enc.get("d_model", d_model))
+            num_blocks = int(enc.get("num_blocks", num_blocks))
+            kernel_size = int(enc.get("kernel_size", kernel_size))
+            dropout = float(enc.get("dropout", dropout))
+        except Exception:
+            pass
+
+        # Recompute config with schema window size (doesn't affect run_dir path).
+        cfg = _config(repo_root=repo_root, window_size=int(window_max), duckdb_threads=duckdb_threads)
+    else:
+        start_d = _parse_ymd(date_start, "--date-start")
+        end_d = _parse_ymd(date_end, "--date-end")
+        if end_d is None:
+            end_d = latest_trading_day_on_or_before(date.today(), cal)
+        if start_d is None:
+            start_d = subtract_years(end_d, 2)
+
+        if ticker_source == "universe":
+            uni = load_universe(cfg)
+            tickers = uni["ticker"].astype(str).str.upper().tolist()
+        elif ticker_source == "labels_only":
+            if labels_csv is None:
+                raise typer.BadParameter("--labels-csv is required when --ticker-source labels_only")
+            labels_res = load_labels_csv(labels_csv, cal=cal)
+            tickers = sorted(set(labels_res.df["ticker"].astype(str).str.upper().tolist()))
+        else:
+            raise typer.BadParameter("--ticker-source must be universe or labels_only")
+
+        # If we're relying on per-ticker raw parquet (no polygon partitions), prefilter tickers
+        # to avoid wasting sampling budget on tickers with no data.
+        try:
+            parts = cfg.paths.list_polygon_grouped_daily_partitions()
+        except Exception:
+            parts = {}
+        if not parts:
+            have_raw = [t for t in tickers if cfg.paths.raw_ticker_parquet(str(t)).exists()]
+            if have_raw:
+                tickers = have_raw
+
+        days = cal.valid_trading_days(start_d, end_d)
+        if not days:
+            raise RuntimeError("No trading days in requested pretrain date range")
+
+        # Fresh run dir.
+        rid = _run_id()
+        run_dir = cfg.paths.models_dir / model_type / "_pretrain" / rid
+        run_dir.mkdir(parents=True, exist_ok=True)
+        write_run_meta(
+            run_dir,
+            repo_root=repo_root,
+            extra={"command": "ns models pretrain", "model_type": model_type, "run_id": rid},
+        )
+
+        # Sample unlabeled windows.
+        target_n = int(num_samples)
+        seen: set[tuple[str, date]] = set()
+        max_draws = max(100, target_n * 25)
+        draws = 0
+        while len(sampled) < target_n and draws < max_draws:
+            draws += 1
+            tkr = tickers[int(rng.integers(0, len(tickers)))]
+            d = days[int(rng.integers(0, len(days)))]
+            key = (tkr, d)
+            if key in seen:
+                continue
+            seen.add(key)
+            sampled.append({"ticker": tkr, "asof_date": d, "setup": "_pretrain", "label": False})
+
+        samples_df = pd.DataFrame(sampled)
+        if samples_df.empty:
+            raise RuntimeError("Failed to sample any unique pretrain windows; widen date range or increase universe size.")
+
+        spec = WindowedBuildSpec(
+            window_size=int(window_max),
+            feature_columns=tuple(),
+            mask_current_day_to_open_only=False,  # SSL pretraining: uncensored (use censor augmentation instead)
+            require_full_window=True,
+        )
+
+        # Sampling config artifact (documents the unlabeled dataset identity).
+        sample_keys = sorted([f"{r['ticker']}|{r['asof_date'].isoformat()}" for r in sampled])
+        sampling_fingerprint = stable_fingerprint(
+            {
+                "ticker_source": str(ticker_source),
+                "labels_csv": str(labels_csv.resolve()) if labels_csv is not None else None,
+                "date_start": start_d.isoformat(),
+                "date_end": end_d.isoformat(),
+                "seed": int(seed),
+                "num_samples": int(num_samples),
+                "sample_keys": sample_keys,
+            }
+        )[:12]
+        sampling_payload = {
             "ticker_source": str(ticker_source),
-            "labels_csv": str(labels_csv.resolve()) if labels_csv is not None else None,
+            "labels_csv": (str(labels_csv.resolve()) if labels_csv is not None else None),
             "date_start": start_d.isoformat(),
             "date_end": end_d.isoformat(),
             "seed": int(seed),
-            "num_samples": int(num_samples),
-            "sample_keys": sample_keys,
+            "num_samples_requested": int(num_samples),
+            "num_samples_sampled": int(len(sampled)),
+            "sampling_fingerprint": sampling_fingerprint,
+            "sample_keys_sha1": stable_fingerprint({"sample_keys": sample_keys}),
+            "unique_tickers": int(len(set([r["ticker"] for r in sampled]))),
         }
-    )[:12]
-    sampling_payload = {
-        "ticker_source": str(ticker_source),
-        "labels_csv": (str(labels_csv.resolve()) if labels_csv is not None else None),
-        "date_start": start_d.isoformat(),
-        "date_end": end_d.isoformat(),
-        "seed": int(seed),
-        "num_samples_requested": int(num_samples),
-        "num_samples_sampled": int(len(sampled)),
-        "sampling_fingerprint": sampling_fingerprint,
-        "sample_keys_sha1": stable_fingerprint({"sample_keys": sample_keys}),
-        "unique_tickers": int(len(set([r["ticker"] for r in sampled]))),
-    }
-    (run_dir / "sampling.json").write_text(
-        json.dumps(sampling_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+        (run_dir / "sampling.json").write_text(
+            json.dumps(sampling_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
 
-    windowed_path = build_windowed_bars(
-        samples_df,
-        config=cfg,
-        spec=spec,
-        out_path=run_dir / "pretrain_windowed_bars.parquet",
-        source_csv=None,
-        cal=cal,
-        reuse_if_unchanged=False,
-    )
+        windowed_path = build_windowed_bars(
+            samples_df,
+            config=cfg,
+            spec=spec,
+            out_path=run_dir / "pretrain_windowed_bars.parquet",
+            source_csv=None,
+            cal=cal,
+            reuse_if_unchanged=False,
+        )
 
     # Determine sample_ids actually present (window builder can drop samples).
     con = connect(cfg)
@@ -1263,13 +1337,40 @@ def pretrain(
     model.to(dev)
     model.train(True)
     opt = torch.optim.Adam(model.parameters(), lr=float(lr))
+    use_amp = bool(amp) and (str(dev.type).lower() == "cuda")
+    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
 
     crop_cfg = CropConfig(crop_lengths=tuple(int(x) for x in crop_length))
     jit_cfg = JitterConfig(sigma=float(jitter_sigma))
     censor_cfg = CensorConfig(prob=float(augment_censor_last_prob))
 
-    total_steps = 0
+    total_steps = 0  # optimizer steps
     last_loss = None
+    loss_sum = 0.0
+    loss_n = 0  # number of microbatches (forward passes)
+
+    # Resume: restore model/opt/rng/step counter.
+    ckpt_path = run_dir / "pretrain_ckpt.pt"
+    if resume_from is not None:
+        if ckpt_path.exists():
+            ckpt = torch.load(ckpt_path, map_location=str(dev))
+            if "model" not in ckpt or "opt" not in ckpt:
+                raise RuntimeError(f"Invalid checkpoint (missing model/opt): {ckpt_path}")
+            model.load_state_dict(ckpt["model"])
+            opt.load_state_dict(ckpt["opt"])
+            total_steps = int(ckpt.get("total_steps") or 0)
+            rng_state = ckpt.get("rng_state")
+            if isinstance(rng_state, dict):
+                rng.bit_generator.state = rng_state
+        else:
+            # Fallback: allow resuming weights-only from encoder.pt (but optimizer state is lost).
+            enc_p = run_dir / "encoder.pt"
+            if not enc_p.exists():
+                raise RuntimeError(f"--resume-from requested but no checkpoint found: {ckpt_path} (and no {enc_p})")
+            model.encoder.load_state_dict(torch.load(enc_p, map_location=str(dev)))
+
+    grad_accum_steps = max(1, int(grad_accum_steps))
+    save_every_steps = max(0, int(save_every_steps))
 
     # Progress bars:
     # - epochs: always known
@@ -1278,6 +1379,9 @@ def pretrain(
     with progress_ctx(transient=False) as progress:
         ep_task = progress.add_task("SSL pretrain epochs", total=int(epochs))
         step_task = progress.add_task("SSL pretrain steps", total=steps_total)
+
+        accum = 0
+        opt.zero_grad(set_to_none=True)
 
         for ep in range(int(epochs)):
             progress.update(ep_task, completed=ep)
@@ -1288,7 +1392,7 @@ def pretrain(
 
             for i0 in range(0, len(shuffled), int(chunk_size)):
                 chunk_ids = shuffled[i0 : i0 + int(chunk_size)]
-                long_df = _load_windowed_for_sample_ids(cfg, windowed_path, chunk_ids)
+                long_df = _load_windowed_for_sample_ids(cfg, windowed_path, chunk_ids, con=con)
                 if long_df.empty:
                     continue
                 ohlcv_batch = build_standard_batch_from_windowed_long(
@@ -1330,23 +1434,56 @@ def pretrain(
                     xt = torch.from_numpy(x_in).to(dev)
                     mt = torch.from_numpy(vmask).to(dev)
 
-                    opt.zero_grad(set_to_none=True)
-                    loss_t, _recon, _m = model.forward(xt, mt, rng=rng)
-                    loss_t.backward()
-                    torch.nn.utils.clip_grad_norm_(list(model.parameters()), max_norm=1.0)
-                    opt.step()
+                    with torch.cuda.amp.autocast(enabled=use_amp):
+                        loss_t, _recon, _m = model.forward(xt, mt, rng=rng)
 
-                    total_steps += 1
-                    last_loss = float(loss_t.detach().cpu().item())
-
-                    # Avoid updating task description too frequently (keeps overhead low).
-                    if total_steps % 10 == 0:
-                        progress.update(step_task, advance=1, description=f"SSL pretrain steps (loss={last_loss:.4f})")
+                    # Accumulate gradients over microbatches.
+                    loss_scaled = loss_t / float(grad_accum_steps)
+                    if use_amp:
+                        scaler.scale(loss_scaled).backward()
                     else:
-                        progress.update(step_task, advance=1)
+                        loss_scaled.backward()
+                    accum += 1
 
-                    if max_steps and total_steps >= int(max_steps):
-                        break
+                    # Track raw (unscaled) loss for logging.
+                    last_loss = float(loss_t.detach().float().cpu().item())
+                    loss_sum += float(last_loss)
+                    loss_n += 1
+
+                    if accum >= grad_accum_steps:
+                        # Step optimizer.
+                        if use_amp:
+                            scaler.unscale_(opt)
+                        torch.nn.utils.clip_grad_norm_(list(model.parameters()), max_norm=1.0)
+                        if use_amp:
+                            scaler.step(opt)
+                            scaler.update()
+                        else:
+                            opt.step()
+                        opt.zero_grad(set_to_none=True)
+                        accum = 0
+
+                        total_steps += 1
+
+                        # Avoid updating task description too frequently (keeps overhead low).
+                        if total_steps % 10 == 0:
+                            progress.update(step_task, advance=1, description=f"SSL pretrain steps (loss={last_loss:.4f})")
+                        else:
+                            progress.update(step_task, advance=1)
+
+                        if save_every_steps and total_steps % save_every_steps == 0:
+                            torch.save(
+                                {
+                                    "model": model.state_dict(),
+                                    "opt": opt.state_dict(),
+                                    "total_steps": int(total_steps),
+                                    "rng_state": rng.bit_generator.state,
+                                },
+                                ckpt_path,
+                            )
+
+                        if max_steps and total_steps >= int(max_steps):
+                            break
 
                 if max_steps and total_steps >= int(max_steps):
                     break
@@ -1393,6 +1530,12 @@ def pretrain(
                 "lr": float(lr),
                 "seed": int(seed),
                 "device": str(device),
+                "amp": bool(use_amp),
+                "grad_accum_steps": int(grad_accum_steps),
+                "save_every_steps": int(save_every_steps),
+                "num_sample_ids": int(len(sample_ids)),
+                "microbatches": int(loss_n),
+                "mean_loss": (float(loss_sum) / float(loss_n) if int(loss_n) > 0 else None),
                 "total_steps": int(total_steps),
                 "last_loss": last_loss,
             },
@@ -1439,7 +1582,7 @@ def warm(
     ticker_source: str = typer.Option("universe", "--ticker-source", help="universe|labels_only"),
     labels_csv: Optional[Path] = typer.Option(None, "--labels-csv", exists=True, dir_okay=False),
     seed: int = typer.Option(1337, "--seed"),
-    duckdb_threads: int = typer.Option(4, "--duckdb-threads"),
+    duckdb_threads: int = typer.Option(4, "--duckdb-threads", envvar="NS_DUCKDB_THREADS"),
 ) -> None:
     cfg = _config(repo_root=repo_root, window_size=window_size, duckdb_threads=duckdb_threads)
     registry = get_default_registry()
@@ -1583,7 +1726,7 @@ def rerank_latest(
     end_lookback_bars: int = typer.Option(7, "--end-lookback-bars"),
     limit: int = typer.Option(50, "--limit", help="Print top-N ranked candidates."),
     out: Optional[Path] = typer.Option(None, "--out", help="Optional output parquet path for predictions."),
-    duckdb_threads: int = typer.Option(4, "--duckdb-threads"),
+    duckdb_threads: int = typer.Option(4, "--duckdb-threads", envvar="NS_DUCKDB_THREADS"),
 ) -> None:
     """
     Propose candidates (or load a candidates parquet), build windows, and score with a trained reranker head.
@@ -1691,5 +1834,8 @@ def rerank_latest(
 
 
 def main() -> None:
+    # Load `.env` from the current working directory (repo root in typical usage).
+    # Values in the shell environment take precedence over `.env`.
+    load_dotenv(Path(".") / ".env", override=False)
     app()
 

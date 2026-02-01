@@ -19,6 +19,7 @@ def random_crop(x: np.ndarray, mask: np.ndarray, *, rng: np.random.Generator, cf
         raise ValueError("x must be (B,T,F)")
     if mask.shape != x.shape:
         raise ValueError("mask must match x shape")
+    B = int(x.shape[0])
     T = int(x.shape[1])
     choices = [int(L) for L in cfg.crop_lengths if int(L) > 0 and int(L) <= T]
     if not choices:
@@ -26,8 +27,13 @@ def random_crop(x: np.ndarray, mask: np.ndarray, *, rng: np.random.Generator, cf
     L = int(choices[int(rng.integers(0, len(choices)))])
     if L == T:
         return x, mask
-    start = int(rng.integers(0, T - L + 1))
-    return x[:, start : start + L, :], mask[:, start : start + L, :]
+    # Sample a different crop start per example to maximize augmentation diversity.
+    starts = rng.integers(0, T - L + 1, size=B)
+    idx = starts[:, None] + np.arange(L, dtype=int)[None, :]  # (B,L)
+    rows = np.arange(B, dtype=int)[:, None]  # (B,1)
+    out_x = x[rows, idx, :]
+    out_m = mask[rows, idx, :]
+    return out_x, out_m
 
 
 @dataclass(frozen=True)
@@ -86,7 +92,11 @@ def maybe_censor_last_timestep(
     p = float(cfg.prob)
     if p <= 0:
         return x, mask
-    if rng.random() >= p:
+    B = int(x.shape[0])
+    if B <= 0:
+        return x, mask
+    sel = rng.random(size=B) < p
+    if not bool(np.any(sel)):
         return x, mask
     out_x = x.copy()
     out_m = mask.copy()
@@ -95,7 +105,7 @@ def maybe_censor_last_timestep(
     t = out_x.shape[1] - 1
     idxs: Sequence[int] = cfg.feature_indices if cfg.feature_indices else range(out_x.shape[2])
     for fi in idxs:
-        out_x[:, t, fi] = np.nan
-        out_m[:, t, fi] = False
+        out_x[sel, t, fi] = np.nan
+        out_m[sel, t, fi] = False
     return out_x, out_m
 
