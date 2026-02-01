@@ -191,10 +191,14 @@ def stack6_tabular_features(
     atr_ratio = atr_s / np.where(np.isfinite(atr_l) & (atr_l > 0), atr_l, np.nan)
 
     # Gap features (decision day open vs prev close).
-    gap_pct = (price_now / close_prev) - 1.0
+    ok_gap = np.isfinite(price_now) & np.isfinite(close_prev) & (price_now > 0) & (close_prev > 0)
+    gap_pct = np.full((n,), np.nan, dtype=float)
+    gap_pct[ok_gap] = (price_now[ok_gap] / close_prev[ok_gap]) - 1.0
     gap_vs_atr = (price_now - close_prev) / atr_l_safe
     gap_direction = np.sign(gap_pct)
-    prev_day_range_pct = (high_prev - low_prev) / close_prev
+    prev_day_range_pct = np.full((n,), np.nan, dtype=float)
+    ok_pdr = np.isfinite(high_prev) & np.isfinite(low_prev) & np.isfinite(close_prev) & (close_prev != 0)
+    prev_day_range_pct[ok_pdr] = (high_prev[ok_pdr] - low_prev[ok_pdr]) / close_prev[ok_pdr]
 
     # Trend context: EMA20 slope and close vs EMA20.
     ema20_now = np.full((n,), np.nan, dtype=float)
@@ -275,7 +279,9 @@ def stack6_tabular_features(
         end = t_prev
         # Returns: log(open_now / close[T-1-h])
         denom_close = _safe_at_time(close_, m_close, t_now - hh)
-        ret_log = np.log(price_now / denom_close)
+        ret_log = np.full((n,), np.nan, dtype=float)
+        ok_ret = np.isfinite(price_now) & np.isfinite(denom_close) & (price_now > 0) & (denom_close > 0)
+        ret_log[ok_ret] = np.log(price_now[ok_ret] / denom_close[ok_ret])
         add(f"return_log_{hh}", ret_log)
 
         # Range on highs/lows over last h completed bars.
@@ -355,7 +361,10 @@ def stack6_tabular_features(
         end = t_prev
         vols = _safe_slice(vol_[:, : t_prev + 1], m_vol[:, : t_prev + 1], start, end)
         med = _nanmedian_2d(vols)
-        add(f"volume_shock_{kk}", vol_prev / med)
+        vs = np.full((n,), np.nan, dtype=float)
+        ok_vs = np.isfinite(vol_prev) & np.isfinite(med) & (med > 0)
+        vs[ok_vs] = vol_prev[ok_vs] / med[ok_vs]
+        add(f"volume_shock_{kk}", vs)
 
     if hmm_p_trend is not None:
         hmm_p_trend = np.asarray(hmm_p_trend, dtype=float)

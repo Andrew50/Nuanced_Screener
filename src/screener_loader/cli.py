@@ -27,7 +27,7 @@ from .config import LoaderConfig
 from .duckdb_utils import connect
 from .derived import rebuild_last_n_bars_from_polygon_date_partitions
 from .labels import assign_split, filter_labels, load_labels_csv, write_labels_store
-from .model_registry import get_default_registry, resolve_model_types
+from .model_registry import TrainedArtifact, get_default_registry, resolve_model_types
 from .normalization import StandardBatch, build_standard_batch_from_windowed_long, fit_global_zscore_stats, normalize_batch
 from .paths import ensure_dirs
 from .scoring import score_binary_predictions, write_score_artifacts
@@ -606,6 +606,7 @@ def train(
     extra_meta_columns: list[str] = typer.Option(
         [], "--extra-meta-column", help="Include these columns into StandardBatch.meta (from windowed bars)."
     ),
+    prob_calibration: str = typer.Option("none", "--prob-calibration", help="none|platt|isotonic"),
 ) -> None:
     cfg = _config(
         repo_root=repo_root,
@@ -636,11 +637,25 @@ def train(
         seed=seed,
     )
 
+    # Auto-include common per-sample meta columns when present in labels.
+    # These must be copied into the windowed bars parquet (sample_meta_columns),
+    # then explicitly requested into StandardBatch.meta (extra_meta_columns).
+    sample_meta_cols_used = [str(x).strip() for x in (sample_meta_columns or []) if str(x).strip()]
+    extra_meta_cols_used = [str(x).strip() for x in (extra_meta_columns or []) if str(x).strip()]
+    for key in [str(weight_column).strip(), str(target_column).strip()]:
+        if not key:
+            continue
+        if key in set(labels_df.columns):
+            if key not in sample_meta_cols_used:
+                sample_meta_cols_used.append(key)
+            if key not in extra_meta_cols_used:
+                extra_meta_cols_used.append(key)
+
     # 3) Build or reuse cached windowed dataset (all labels, all setups)
     spec = WindowedBuildSpec(
         window_size=int(window_size),
         feature_columns=tuple(feature_columns),
-        sample_meta_columns=tuple(sample_meta_columns),
+        sample_meta_columns=tuple(sample_meta_cols_used),
         mask_current_day_to_open_only=True,
         require_full_window=True,
     )
@@ -718,14 +733,14 @@ def train(
         train_long,
         feature_columns=feature_cols_dense,
         window_size=window_size,
-        extra_meta_columns=list(extra_meta_columns),
+        extra_meta_columns=list(extra_meta_cols_used),
     )
     val_batch_raw = (
         build_standard_batch_from_windowed_long(
             val_long,
             feature_columns=feature_cols_dense,
             window_size=window_size,
-            extra_meta_columns=list(extra_meta_columns),
+            extra_meta_columns=list(extra_meta_cols_used),
         )
         if not val_long.empty
         else None
@@ -735,7 +750,7 @@ def train(
             test_long,
             feature_columns=feature_cols_dense,
             window_size=window_size,
-            extra_meta_columns=list(extra_meta_columns),
+            extra_meta_columns=list(extra_meta_cols_used),
         )
         if not test_long.empty
         else None
@@ -818,8 +833,8 @@ def train(
                 "window_size": int(window_size),
                 "feature_columns": list(feature_cols_dense),
                 "normalization": str(normalization),
-                "sample_meta_columns": [str(x) for x in sample_meta_columns],
-                "extra_meta_columns": [str(x) for x in extra_meta_columns],
+                "sample_meta_columns": [str(x) for x in sample_meta_cols_used],
+                "extra_meta_columns": [str(x) for x in extra_meta_cols_used],
             },
             "counts": {
                 "labels_rows": int(len(labels_res.df)),
@@ -833,6 +848,7 @@ def train(
                 "encoder_dir": encoder_dir_resolved,
                 "head_config": head_cfg_payload,
                 "calibration_labels_csv": (str(calibration_labels_csv.resolve()) if calibration_labels_csv else None),
+                "prob_calibration": str(prob_calibration),
             },
         }
         (run_dir / "train_config.json").write_text(json.dumps(train_cfg, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -865,7 +881,8 @@ def train(
         )
 
         # For SSL finetune/head-student, normalization is schema-enforced inside the runner (on shape features).
-        if mt in {"ssl_tcn_classifier", "torch_ssl_head_student"}:
+        # For Stack 6 classic/tabular models, we always need raw OHLCV windows.
+        if mt in {"ssl_tcn_classifier", "torch_ssl_head_student", "logreg_stack6", "lgbm_stack6", "hmm_regime"}:
             train_batch = train_batch_raw
             val_batch = val_batch_raw
             test_batch = test_batch_raw
@@ -882,7 +899,23 @@ def train(
                 else None
             )
 
-        artifact = runner.train([train_batch], run_dir=run_dir)
+        # Prefer an optional val-aware training API when available (e.g. LightGBM early stopping).
+        if val_batch is not None and hasattr(runner, "train_with_val"):
+            artifact = runner.train_with_val([train_batch], [val_batch], run_dir=run_dir)  # type: ignore[attr-defined]
+        else:
+            artifact = runner.train([train_batch], run_dir=run_dir)
+
+        # Optional probability calibration (Platt / Isotonic) using val split.
+        cal_method = str(prob_calibration).strip().lower()
+        if cal_method not in {"none", "platt", "isotonic"}:
+            raise typer.BadParameter("--prob-calibration must be none|platt|isotonic")
+        if cal_method != "none" and val_batch is not None and hasattr(runner, "fit_probability_calibration"):
+            runner.fit_probability_calibration(  # type: ignore[attr-defined]
+                [val_batch],
+                artifact=artifact,
+                run_dir=run_dir,
+                method=cal_method,
+            )
 
         # Score on val/test splits when present.
         for split_name, batch in [("val", val_batch), ("test", test_batch)]:
@@ -894,6 +927,102 @@ def train(
             write_score_artifacts(run_dir=split_dir, predictions=preds, report=report)
 
         print(f"[green]Wrote[/green] {run_dir}")
+
+
+@models_app.command()
+def scan(
+    model_type: str = typer.Option(..., "--model-type", help="Model type to use for inference."),
+    run_dir: Path = typer.Option(..., "--run-dir", exists=True, file_okay=False, dir_okay=True),
+    repo_root: Path = typer.Option(Path("."), "--repo-root"),
+    asof_date: Optional[str] = typer.Option(None, "--asof-date", help="YYYY-MM-DD (defaults to latest trading day)."),
+    setup: str = typer.Option("scan", "--setup", help="Setup string for sample_id namespace."),
+    ticker_source: str = typer.Option("universe", "--ticker-source", help="universe|csv"),
+    tickers_csv: Optional[Path] = typer.Option(None, "--tickers-csv", exists=True, dir_okay=False),
+    window_size: int = typer.Option(100, "--window-size"),
+    limit: int = typer.Option(200, "--limit", help="Print top-N rows (0=print none)."),
+    out: Optional[Path] = typer.Option(None, "--out", help="Output parquet path."),
+    duckdb_threads: int = typer.Option(4, "--duckdb-threads"),
+) -> None:
+    """
+    Score many tickers at a single asof_date using a trained model artifact.
+
+    Notes:
+    - Uses the same open-time leakage masking: only open on asof_date is visible.
+    - Expects classic Stack-6 style artifacts to be present under run_dir (artifact.json).
+    """
+    cfg = _config(repo_root=repo_root, window_size=int(window_size), duckdb_threads=duckdb_threads)
+    registry = get_default_registry()
+    if model_type not in registry:
+        raise typer.BadParameter(f"Unknown model_type {model_type!r}. Known: {sorted(registry)}")
+    runner = registry[model_type]
+
+    cal = TradingCalendar("NYSE")
+    d = _parse_ymd(asof_date, "--asof-date")
+    if d is None:
+        d = latest_trading_day_on_or_before(date.today(), cal)
+
+    ts = str(ticker_source).strip().lower()
+    if ts == "universe":
+        uni = load_universe(cfg)
+        tickers = uni["ticker"].astype(str).str.upper().tolist()
+    elif ts == "csv":
+        if tickers_csv is None:
+            raise typer.BadParameter("--tickers-csv is required when --ticker-source csv")
+        df = pd.read_csv(tickers_csv, na_filter=False)
+        if "ticker" not in df.columns:
+            raise typer.BadParameter("--tickers-csv must have a 'ticker' column")
+        tickers = df["ticker"].astype(str).str.strip().str.upper().tolist()
+        tickers = [t for t in tickers if t]
+    else:
+        raise typer.BadParameter("--ticker-source must be universe|csv")
+
+    if not tickers:
+        raise RuntimeError("No tickers to scan")
+
+    samples_df = pd.DataFrame({"ticker": tickers, "asof_date": [d] * len(tickers), "setup": str(setup), "label": False})
+
+    spec = WindowedBuildSpec(
+        window_size=int(window_size),
+        feature_columns=tuple(),
+        sample_meta_columns=tuple(),
+        mask_current_day_to_open_only=True,
+        require_full_window=True,
+    )
+    windowed_path = build_windowed_bars(
+        samples_df,
+        config=cfg,
+        spec=spec,
+        out_path=(Path(run_dir) / "scan_windowed.parquet"),
+        source_csv=None,
+        cal=cal,
+        reuse_if_unchanged=False,
+    )
+
+    windowed_long = pd.read_parquet(windowed_path)
+    if windowed_long.empty:
+        raise RuntimeError("Scan windowed dataset is empty (no full windows available)")
+
+    batch = build_standard_batch_from_windowed_long(
+        windowed_long,
+        feature_columns=["open", "high", "low", "close", "volume"],
+        window_size=int(window_size),
+    )
+
+    artifact_path = Path(run_dir) / "artifact.json"
+    if not artifact_path.exists():
+        raise FileNotFoundError(f"Missing artifact.json in run_dir={run_dir}")
+    artifact = TrainedArtifact(runner_name=runner.name, path=artifact_path)
+    preds = runner.predict([batch], artifact=artifact)
+    if preds.empty:
+        raise RuntimeError("No predictions returned")
+    preds = preds.sort_values(["score"], ascending=[False]).reset_index(drop=True)
+
+    out_path = out or (Path(run_dir) / "scan_predictions.parquet")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    preds.to_parquet(out_path, index=False)
+    print(f"[green]Wrote[/green] {out_path} rows={len(preds)}")
+    if int(limit) > 0:
+        print(preds.head(int(limit)))
 
 
 @models_app.command("index")

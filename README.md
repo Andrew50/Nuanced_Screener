@@ -130,6 +130,33 @@ ns models train --labels-csv labels.csv --model-type ssl_tcn_classifier --setup 
 ns models train --labels-csv labels.csv --model-type dummy_constant_prior --setup flag
 ```
 
+### Classical baselines (Stack 6): tabular features + LightGBM + regimes
+
+Install classic ML deps (no torch):
+
+```bash
+pip install -e ".[dev,ml_classic]"
+```
+
+Train:
+
+```bash
+# Logistic regression baseline on Stack-6 tabular features
+ns models train --labels-csv labels.csv --model-type logreg_stack6 --setup flag --window-size 96
+
+# LightGBM baseline (optionally calibrate on val for more stable thresholds)
+ns models train --labels-csv labels.csv --model-type lgbm_stack6 --setup flag --window-size 96 --prob-calibration isotonic
+
+# 2-state HMM regime model (unsupervised; score is p(trend_state))
+ns models train --labels-csv labels.csv --model-type hmm_regime --setup flag --window-size 96
+```
+
+Scan the latest universe:
+
+```bash
+ns models scan --model-type lgbm_stack6 --run-dir data/models/lgbm_stack6/flag/<RUN_ID> --limit 50
+```
+
 ### Inspect results
 
 Where runs are written:

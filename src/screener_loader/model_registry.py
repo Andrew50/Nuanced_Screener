@@ -197,6 +197,15 @@ def get_default_registry() -> dict[str, Runner]:
     # Register only concrete runners we actually implement.
     r1: Runner = ConstantPriorRunner()
     r2: Runner = NoOpWarmRunner()
+    # Stack 6 classic baselines (deps imported lazily inside runners).
+    from .runners_stack6 import HMMRegimeRunner, Stack6LightGBMRunner, Stack6LogRegRunner
+
+    r3: Runner = Stack6LogRegRunner()
+    r4: Runner = Stack6LightGBMRunner()
+    r5: Runner = HMMRegimeRunner()
+
+    registry: dict[str, Runner] = {r1.name: r1, r2.name: r2, r3.name: r3, r4.name: r4, r5.name: r5}
+
     # Optional ML runner(s): import lazily so base CLI works without torch.
     try:
         import importlib.util
@@ -207,13 +216,14 @@ def get_default_registry() -> dict[str, Runner]:
         from .ssl.runner_pseudo_head import TorchSSLHeadStudentRunner
         from .torch_models.reranker_head import TorchRerankerHeadRunner
 
-        r3: Runner = SSLTCNClassifierRunner()
-        r5: Runner = TorchSSLHeadStudentRunner()
-        r4: Runner = TorchRerankerHeadRunner()
-        return {r1.name: r1, r2.name: r2, r3.name: r3, r5.name: r5, r4.name: r4}
+        r6: Runner = SSLTCNClassifierRunner()
+        r7: Runner = TorchSSLHeadStudentRunner()
+        r8: Runner = TorchRerankerHeadRunner()
+        registry.update({r6.name: r6, r7.name: r7, r8.name: r8})
     except Exception:
-        # If torch (or other ML deps) aren't installed, just omit the runner.
-        return {r1.name: r1, r2.name: r2}
+        pass
+
+    return registry
 
 
 def resolve_model_types(model_type: str, registry: dict[str, Runner]) -> list[str]:
