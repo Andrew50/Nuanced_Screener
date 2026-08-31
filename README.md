@@ -1,187 +1,87 @@
-# Nuanced Screener (local): Parquet storage + DuckDB compute
+# Nuanced Screener
 
-This repo implements a **single-client/local** market data loader optimized for fast **“scan whole market current values”** operations.
+Local market-data loader and ML screening toolkit: Parquet on disk, DuckDB for scans, and leakage-aware models for chart-shape setups.
 
-- **Parquet is the storage format** (durable files under `data/`).
-- **DuckDB is the query/compute engine** (embedded database library) that reads/writes Parquet and runs screening SQL.
+## Overview
+
+This is a single-machine pipeline for pulling US equity OHLCV, building derived feature tables, and training/scoring setup detectors against hand-labeled examples.
+
+Storage and compute stay local. Vendors write Parquet; DuckDB reads those files for market-wide screens. Training uses the same window builder as inference, with decision-day bars censored to the open so models cannot peek at same-day high/low/close.
+
+The interesting part is the ML stack on top of that data path: self-supervised TCN pretraining on OHLCV shape features, classical Stack-6 baselines (logistic regression, LightGBM, HMM regimes), and a weak-supervision path for expanding labels from pattern candidates.
+
+## Highlights
+
+- **Leakage-aware windows**: decision at day-open; only `open` is kept on the as-of bar (`mask_current_day_to_open_only`).
+- **Vendor-swappable ingest**: Polygon grouped-daily date partitions by default; Stooq and Yahoo per-ticker paths also supported. Per-host rate limiting and retries are built in.
+- **SSL + classical models**: masked TCN pretrain → finetune heads, plus LightGBM/logreg/HMM runners under one CLI and artifact layout (`data/models/<model>/<setup>/<run_id>/`).
+- **Weak supervision**: labeling functions + Snorkel-style independent label model to generate pseudo-labels from candidate pools.
+- **Experiment index**: `ns models index` flattens run configs/metrics into a comparable table.
+
+**Stack:** Python 3.10+, DuckDB, Parquet/PyArrow, Typer, optional PyTorch / LightGBM / scikit-learn / hmmlearn
 
 ## Layout
 
-- `data/meta/tickers.csv`: cached ticker universe (from NASDAQ Trader Symbol Directory)
-- `data/raw/{TICKER}.parquet`: per-ticker OHLCV history (gitignored)
-- `data/derived/last_100_bars.parquet`: consolidated last-`window_size` bars per ticker (gitignored)
+```
+src/screener_loader/   # package + `ns` CLI
+tests/                 # unit + CLI smoke tests
+data/meta/             # cached ticker universe (tracked)
+data/raw/              # OHLCV parquet (gitignored)
+data/derived/          # last-N bars, embeddings (gitignored)
+data/models/           # training artifacts (gitignored)
+labels.csv             # hand-labeled setups (~330 rows, 2020–2024)
+docs/                  # design notes (pretrain roadmap)
+```
 
-## Install
+## Running locally
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
+cp .env.example .env   # set POLYGON_API_KEY if using Polygon
 ```
 
-## Commands (cookbook)
-
-Help:
+Optional extras: `pip install -e ".[ml]"` (PyTorch) or `pip install -e ".[ml_classic]"` (LightGBM / sklearn / hmmlearn).
 
 ```bash
 ns --help
-ns models --help
-ns models train --help
-ns models pretrain --help
-```
-
-### Data: universe
-
-```bash
 ns universe --exclude-test-issues --include-exchanges NASDAQ NYSE AMEX
-```
-
-### Data: update raw OHLCV
-
-Per-ticker mode (non-Polygon vendors):
-
-```bash
-ns update --ohlcv-vendor stooq --start-date 2010-01-01 --processes 16 --batch-size 100
-```
-
-Polygon grouped-daily date partitions (default):
-
-```bash
 ns update --ohlcv-vendor polygon_grouped --lookback-years 2 --calls-per-minute 5
-```
-
-### Data: derived datasets
-
-Rebuild last-N bars (also runs at end of `update`):
-
-```bash
 ns rebuild-last100 --window-size 100
-```
-
-Run a named market scan on `data/derived/last_100_bars.parquet`:
-
-```bash
 ns screen --query top_momentum_21d --limit 50
-ns screen --query liquid_momo_21d --limit 50
-ns screen --query range_pct_today --limit 50
 ```
 
-### SSL pretrain (TCN masked modeling)
-
-Install ML deps:
-
-```bash
-pip install -e ".[dev,ml]"
-```
-
-Pretrain (unlabeled windows, uncensored OHLCV):
-
-```bash
-ns models pretrain --ticker-source universe --num-samples 50000 --window-max 96 --crop-length 64 --crop-length 96 --epochs 5 --batch-size 64 --device cpu
-```
-
-Common variations:
-
-```bash
-# Use labels-only universe (tickers from labels CSV)
-ns models pretrain --ticker-source labels_only --labels-csv labels.csv --num-samples 20000
-
-# Robust normalization
-ns models pretrain --normalization per_window_robust_zscore
-
-# Masking policy
-ns models pretrain --mask-mode time --mask-rate-time 0.10
-ns models pretrain --mask-mode feature --mask-rate-feat 0.15
-ns models pretrain --mask-mode both --mask-rate-time 0.10 --mask-rate-feat 0.15
-
-# Optional context feature
-ns models pretrain --include-pos
-
-# Optional: simulate inference censoring as augmentation (last timestep)
-ns models pretrain --augment-censor-last-prob 0.25
-```
-
-Artifacts:
-
-```bash
-ls -1 data/models/ssl_tcn_masked_pretrain/_pretrain/
-ls -1 data/models/ssl_tcn_masked_pretrain/_pretrain/<RUN_ID>/
-```
-
-### Finetune (per-setup binary head)
-
-Train a head from labels (uses inference-time censoring via the standard window builder):
-
-```bash
-ns models train --labels-csv labels.csv --model-type ssl_tcn_classifier --setup flag --window-size 96 --encoder-dir data/models/ssl_tcn_masked_pretrain/_pretrain/<RUN_ID>
-```
-
-Common variations:
-
-```bash
-# Head hyperparams
-ns models train --labels-csv labels.csv --model-type ssl_tcn_classifier --setup flag --encoder-dir data/models/ssl_tcn_masked_pretrain/_pretrain/<RUN_ID> --head-epochs 5 --head-lr 0.001 --head-hidden-dim 128
-
-# Split policy
-ns models train --labels-csv labels.csv --model-type ssl_tcn_classifier --setup flag --split time
-ns models train --labels-csv labels.csv --model-type ssl_tcn_classifier --setup flag --split random --seed 1337
-
-# Baselines
-ns models train --labels-csv labels.csv --model-type dummy_constant_prior --setup flag
-```
-
-### Classical baselines (Stack 6): tabular features + LightGBM + regimes
-
-Install classic ML deps (no torch):
+Train a classical baseline (needs local OHLCV for labeled tickers):
 
 ```bash
 pip install -e ".[dev,ml_classic]"
-```
-
-Train:
-
-```bash
-# Logistic regression baseline on Stack-6 tabular features
-ns models train --labels-csv labels.csv --model-type logreg_stack6 --setup flag --window-size 96
-
-# LightGBM baseline (optionally calibrate on val for more stable thresholds)
-ns models train --labels-csv labels.csv --model-type lgbm_stack6 --setup flag --window-size 96 --prob-calibration isotonic
-
-# 2-state HMM regime model (unsupervised; score is p(trend_state))
-ns models train --labels-csv labels.csv --model-type hmm_regime --setup flag --window-size 96
-```
-
-Scan the latest universe:
-
-```bash
+ns models train --labels-csv labels.csv --model-type lgbm_stack6 --setup flag --window-size 96
 ns models scan --model-type lgbm_stack6 --run-dir data/models/lgbm_stack6/flag/<RUN_ID> --limit 50
 ```
 
-### Inspect results
-
-Where runs are written:
+SSL pretrain / finetune:
 
 ```bash
-ls -1 data/models/<MODEL_TYPE>/<SETUP>/
-ls -1 data/models/<MODEL_TYPE>/<SETUP>/<RUN_ID>/
+pip install -e ".[dev,ml]"
+ns models pretrain --ticker-source universe --num-samples 50000 --window-max 96 --epochs 5 --device cpu
+ns models train --labels-csv labels.csv --model-type ssl_tcn_classifier --setup flag \
+  --window-size 96 --encoder-dir data/models/ssl_tcn_masked_pretrain/_pretrain/<RUN_ID>
 ```
 
-Metrics + predictions (val/test):
+See `ns models --help`, `ns weak --help`, and `ns candidates --help` for the full surface. Design notes for next pretrain objectives live in `docs/PRETRAIN_MODEL_ROADMAP.md`.
+
+## Tests
 
 ```bash
-cat data/models/<MODEL_TYPE>/<SETUP>/<RUN_ID>/val/metrics.json
-cat data/models/<MODEL_TYPE>/<SETUP>/<RUN_ID>/test/metrics.json
+pip install -e ".[dev]"
+pytest -q
 ```
 
-Quick peek at prediction rows:
-
-```bash
-python -c "import pandas as pd; df=pd.read_parquet('data/models/<MODEL_TYPE>/<SETUP>/<RUN_ID>/val/predictions.parquet'); print(df.head(10))"
-```
+Smoke tests that hit Torch or LightGBM need the matching optional extras. Most data/vendor tests use fixtures or monkeypatches and do not require a live API key.
 
 ## Notes
 
-- `data/raw/` and `data/derived/` are gitignored by default; `data/meta/` is intended to be trackable.
-- `data/models/` is gitignored by default (weights/artifacts can be large).
-- The initial vendor is `yfinance` (prototype). The code is structured so you can swap to Polygon/IEX/etc. without changing storage/query layers.
-
+- `POLYGON_API_KEY` is read from the environment or `.env` (never commit `.env`).
+- Large datasets under `data/raw/`, `data/derived/`, and `data/models/` are gitignored on purpose.
+- `labels.csv` is the source of truth for supervised setups; generated Parquet label stores are local artifacts.

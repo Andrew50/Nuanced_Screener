@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "nuanced-screener"
 version = "0.1.0"
-description = "Local single-client screener loader: Parquet storage + DuckDB compute."
+description = "Local market-data loader and ML screener: Parquet storage, DuckDB scans, leakage-aware models."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

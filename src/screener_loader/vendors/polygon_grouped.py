@@ -114,7 +114,7 @@ def require_polygon_api_key(repo_root) -> str:
     if not key:
         raise RuntimeError(
             "Missing POLYGON_API_KEY. Set it in the environment or create `.env` "
-            "(you can copy `env.example` -> `.env`)."
+            "(you can copy `.env.example` -> `.env`)."
         )
     return key
 

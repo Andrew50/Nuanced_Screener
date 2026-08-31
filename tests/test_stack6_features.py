@@ -76,11 +76,12 @@ def test_stack6_is_masking_safe_and_computes_basic_features() -> None:
     # Ensure masked decision-day close didn't leak into return.
     assert ret2 < 10.0
 
-    # ATR windows in this synthetic series are constant TR=2.0 => ATR_short=2, ATR_long=2.
+    # Classic true range: most bars have TR=2, but t=4 gaps from close=10 → TR=max(2,5,3)=5.
+    # atr_short=2 uses TR[3],TR[4] => (2+5)/2; atr_long=3 uses TR[2..4] => (2+2+5)/3.
     atr_s = X[0, _idx(names, "atr_short")]
     atr_l = X[0, _idx(names, "atr_long")]
-    assert abs(atr_s - 2.0) < 1e-9
-    assert abs(atr_l - 2.0) < 1e-9
+    assert abs(atr_s - 3.5) < 1e-9
+    assert abs(atr_l - 3.0) < 1e-9
 
     # prev_day_range_pct = (high_prev-low_prev)/close_prev = (15-13)/14
     pdr = X[0, _idx(names, "prev_day_range_pct")]
