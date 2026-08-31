@@ -3,9 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Iterable
 
-import numpy as np
 import pandas as pd
 
 from ..config import LoaderConfig

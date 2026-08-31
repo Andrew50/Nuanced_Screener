@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pandas as pd
 
 from screener_loader.config import LoaderConfig
 from screener_loader.paths import ensure_dirs

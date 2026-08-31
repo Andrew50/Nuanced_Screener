@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 import pandas as pd
 
-from ..config import LoaderConfig
 from ..http_client import get_thread_local_session
 from ..dotenv import load_dotenv_file
 

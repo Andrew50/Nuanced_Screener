@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from typing import Any
 
 import pandas as pd
-import requests
 
 from ..config import LoaderConfig
 from ..http_client import get_thread_local_session

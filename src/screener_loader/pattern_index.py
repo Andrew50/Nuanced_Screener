@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Any, Iterable, Iterator, Literal
+from typing import Any, Iterable, Literal
 
 import numpy as np
 import pandas as pd

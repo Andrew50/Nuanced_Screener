@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 from typing import Iterable
 
@@ -12,7 +12,7 @@ import pandas as pd
 from .calendar_utils import TradingCalendar, last_n_trading_days_ending_at, next_n_trading_days_starting_after
 from .config import LoaderConfig
 from .duckdb_utils import connect
-from .paths import DataPaths, atomic_replace, ensure_dirs
+from .paths import atomic_replace, ensure_dirs
 
 
 # Keep these consistent with `derived.py` (duplicated intentionally to avoid importing private constants).

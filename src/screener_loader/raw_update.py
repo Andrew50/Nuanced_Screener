@@ -5,7 +5,6 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
-import duckdb
 import pandas as pd
 
 from .config import LoaderConfig

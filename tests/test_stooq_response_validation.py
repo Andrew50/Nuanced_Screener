@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-import pandas as pd
 
 from screener_loader.config import LoaderConfig
 from screener_loader.vendors.stooq import StooqVendor

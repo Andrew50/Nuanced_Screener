@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-import pandas as pd
 
 from screener_loader.config import LoaderConfig
 from screener_loader.vendors import nasdaq_trader

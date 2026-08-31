@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "nuanced-screener"
 version = "0.1.0"
-description = "Local market-data loader and ML screener: Parquet storage, DuckDB scans, leakage-aware models."
+description = "Local market-data and ML screening pipeline with Parquet, DuckDB, and leakage-aware TCN/LightGBM models."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -16,13 +16,13 @@ dependencies = [
   "requests>=2.31.0",
   "typer>=0.12.0",
   "rich>=13.7.0",
-  # Prototype vendor:
   "yfinance>=0.2.36",
 ]
 
 [project.optional-dependencies]
 dev = [
   "pytest>=8.0.0",
+  "ruff>=0.6.0",
 ]
 ml = [
   # Back-compat meta extra (kept intentionally small).
@@ -47,3 +47,21 @@ where = ["src"]
 [project.scripts]
 ns = "screener_loader.cli:main"
 
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+# Keep CI lint minimal: catch real errors without mass style rewrites.
+select = [
+  "E",
+  "F",
+]
+ignore = [
+  "E501",
+  "E741",  # OHLCV code commonly uses `l` for low
+]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/**" = ["E", "F"]
