@@ -414,6 +414,9 @@ class CompiledRequest:
     fingerprint: str
     estimates: RequestBudgetEstimate
     model: str
+    max_output_tokens: int = 4096
+    image_detail: ImageDetail = "auto"
+    timeout_seconds: float = 60.0
 
 
 @dataclass(frozen=True)

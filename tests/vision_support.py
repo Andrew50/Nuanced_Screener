@@ -338,13 +338,19 @@ class FakeCompiler:
     def __init__(self) -> None:
         self.calls = 0
         self.max_seen_candidates = 0
+        self._lock = Lock()
+        self.oversize_when_gt: int | None = None
 
     def compile(self, *, setups, example_artifacts, examples, candidate_artifacts, candidates, config, batch_id):
-        from screener_loader.vision.types import RequestBlock, RequestBudgetEstimate, load_response_schema
+        from screener_loader.vision.types import OversizeRequestError, RequestBlock, RequestBudgetEstimate, load_response_schema
 
-        self.calls += 1
-        self.max_seen_candidates = max(self.max_seen_candidates, len(tuple(candidates)))
-        cids = tuple(c.candidate_id for c in candidates)
+        cands = tuple(candidates)
+        with self._lock:
+            self.calls += 1
+            self.max_seen_candidates = max(self.max_seen_candidates, len(cands))
+        if self.oversize_when_gt is not None and len(cands) > self.oversize_when_gt:
+            raise OversizeRequestError(f"oversize test {len(cands)}")
+        cids = tuple(c.candidate_id for c in cands)
         sids = tuple(s.setup_id for s in setups)
         blocks = (RequestBlock(kind="text", purpose="instructions", text="assess"),)
         estimates = RequestBudgetEstimate(
@@ -378,12 +384,24 @@ class FakeClassifier:
         self.error = error
         self.calls = 0
         self.requests: list[CompiledRequest] = []
+        self._lock = Lock()
+        self._failures_remaining = 0
+        self._transient_error: AttemptError | None = None
+
+    def fail_next(self, n: int, error: AttemptError) -> None:
+        self._transient_error = error
+        self._failures_remaining = int(n)
 
     def classify(self, request: CompiledRequest) -> ClassificationAttempt:
-        self.calls += 1
-        self.requests.append(request)
+        with self._lock:
+            self.calls += 1
+            self.requests.append(request)
+            error = self.error
+            if self._failures_remaining > 0:
+                error = self._transient_error
+                self._failures_remaining -= 1
         now = datetime.now(timezone.utc)
-        if self.error is not None:
+        if error is not None:
             return ClassificationAttempt(
                 attempt_id=str(uuid4()),
                 batch_id=request.batch_id,
@@ -396,9 +414,9 @@ class FakeClassifier:
                 model=request.model,
                 response_id=None,
                 usage=TokenUsage(input_tokens=10, output_tokens=0, total_tokens=10),
-                retry_after_seconds=self.error.retry_after_seconds,
+                retry_after_seconds=error.retry_after_seconds,
                 latency_ms=1,
-                error=self.error,
+                error=error,
                 sanitized_output=None,
                 results=None,
                 accepted=False,
@@ -411,6 +429,25 @@ class FakeClassifier:
                     assessment(sid, "no_match", reason="No coiled structure.") for sid in request.setup_ids
                 )
             results.append(CandidateClassification(candidate_id=cid, assessments=assessments))
+        payload = {
+            "results": [
+                {
+                    "candidate_id": row.candidate_id,
+                    "assessments": [
+                        {
+                            "setup_id": a.setup_id,
+                            "verdict": a.verdict,
+                            "match_strength": a.match_strength,
+                            "reason": a.reason,
+                            "violated_required_rule_ids": list(a.violated_required_rule_ids),
+                            "missing_evidence": list(a.missing_evidence),
+                        }
+                        for a in row.assessments
+                    ],
+                }
+                for row in results
+            ]
+        }
         return ClassificationAttempt(
             attempt_id=str(uuid4()),
             batch_id=request.batch_id,
@@ -426,9 +463,9 @@ class FakeClassifier:
             retry_after_seconds=None,
             latency_ms=1,
             error=None,
-            sanitized_output={"results": []},
+            sanitized_output=payload,
             results=tuple(results),
-            accepted=True,
+            accepted=False,
         )
 
 
@@ -513,7 +550,13 @@ class InMemoryRunStore:
         self.attempts[run_id].append(attempt)
 
     def recover_attempt(self, run_id: str, batch_fingerprint: str) -> ClassificationAttempt | None:
-        found = [a for a in self.attempts.get(run_id, ()) if a.batch_fingerprint == batch_fingerprint and a.accepted]
+        found = [
+            a
+            for a in self.attempts.get(run_id, ())
+            if a.batch_fingerprint == batch_fingerprint
+            and a.error is None
+            and (a.results is not None or a.sanitized_output is not None)
+        ]
         return found[-1] if found else None
 
     def commit_batch(self, run_id: str, *, batch_id: str, results: Sequence[CandidateResult], attempt: ClassificationAttempt) -> None:
