@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VisionBatchClassification",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["results"],
+  "properties": {
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["candidate_id", "assessments"],
+        "properties": {
+          "candidate_id": { "type": "string" },
+          "assessments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "setup_id",
+                "verdict",
+                "match_strength",
+                "reason",
+                "violated_required_rule_ids",
+                "missing_evidence"
+              ],
+              "properties": {
+                "setup_id": { "type": "string" },
+                "verdict": {
+                  "type": "string",
+                  "enum": ["match", "no_match", "uncertain"]
+                },
+                "match_strength": {
+                  "anyOf": [
+                    { "type": "integer", "enum": [1, 2, 3] },
+                    { "type": "null" }
+                  ]
+                },
+                "reason": { "type": "string" },
+                "violated_required_rule_ids": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "missing_evidence": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
