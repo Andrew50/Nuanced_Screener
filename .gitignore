@@ -212,6 +212,7 @@ data/derived/
 data/models/
 data/labels/
 data/patterns/
+data/vision_scans/
 
 # Local scratch / smoke outputs
 ._tmp*/

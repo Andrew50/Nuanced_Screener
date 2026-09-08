@@ -2,9 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional
-import os
-import subprocess
-import sys
 
 import typer
 from rich import print
@@ -222,24 +219,7 @@ def setups_ui(
     repo_root: Path = typer.Option(Path("."), "--repo-root"),
     port: int = typer.Option(8501, "--port"),
 ) -> None:
-    """Launch the Streamlit setup builder. Requires the optional ui extra."""
-    try:
-        import streamlit  # noqa: F401
-    except ImportError as e:
-        raise typer.BadParameter("Streamlit is not installed. Run: pip install -e '.[ui]'") from e
+    """Launch the shared Streamlit app on the setup builder page. Requires the optional ui extra."""
+    from .vision import launch_shared_ui
 
-    app_path = Path(__file__).resolve().parents[1] / "ui" / "setup_builder.py"
-    env = os.environ.copy()
-    env["NS_REPO_ROOT"] = str(Path(repo_root).resolve())
-    cmd = [
-        sys.executable,
-        "-m",
-        "streamlit",
-        "run",
-        str(app_path),
-        "--server.port",
-        str(int(port)),
-        "--server.headless",
-        "true",
-    ]
-    raise SystemExit(subprocess.call(cmd, env=env))
+    launch_shared_ui(repo_root=repo_root, port=port, page="builder")

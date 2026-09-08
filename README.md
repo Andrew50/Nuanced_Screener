@@ -77,7 +77,7 @@ pip install -e ".[dev]"
 cp .env.example .env   # set POLYGON_API_KEY when using Polygon
 ```
 
-Optional: `pip install -e ".[ml]"` (PyTorch) or `pip install -e ".[ml_classic]"` (LightGBM / sklearn / hmmlearn).
+Optional: `pip install -e ".[ml]"` (PyTorch), `pip install -e ".[ml_classic]"` (LightGBM / sklearn / hmmlearn), `pip install -e ".[ui]"` (Streamlit setup builder + vision results), `pip install -e ".[vision]"` (OpenAI + matplotlib for headless chart scans).
 
 ```bash
 ns --help
@@ -104,7 +104,9 @@ ns models train --labels-csv labels.csv --model-type ssl_tcn_classifier --setup 
   --window-size 96 --encoder-dir data/models/ssl_tcn_masked_pretrain/_pretrain/<RUN_ID>
 ```
 
-Use `ns models --help`, `ns candidates --help`, and `ns weak --help` for the full surface. `--setup` filters must match values present in `labels.csv` (for example `F`), not the separate heuristic names used by weak-supervision helpers.
+Use `ns models --help`, `ns candidates --help`, `ns weak --help`, `ns setups --help`, and `ns vision --help` for the full surface. `--setup` filters must match values present in `labels.csv` (for example `F`), not the separate heuristic names used by weak-supervision helpers.
+
+Vision chart classification (YAML setups → last-N charts → optional Responses API) is documented in [docs/VISION_MVP.md](docs/VISION_MVP.md). `ns setups ui` and `ns vision view` share one Streamlit app. Scans are launched from `ns vision scan` (`--dry-run` / `--demo` / explicit `--model`). Storage is `data/vision_scans/`. Live scans need `OPENAI_API_KEY` and `NS_VISION_MODEL`; a missing key does not invent results.
 
 ## Testing
 
@@ -114,12 +116,14 @@ ruff check .
 pytest -q
 ```
 
-CI runs Ruff and pytest on Python 3.10 and 3.12 without Polygon credentials, GPU, or optional ML extras. Smoke tests that need Torch or LightGBM are skipped unless those extras are installed.
+CI runs Ruff and pytest on Python 3.10 and 3.12 without Polygon credentials, GPU, optional ML extras, or OpenAI. The `ui` extra is installed in CI so Streamlit/matplotlib tests run. Smoke tests that need Torch or LightGBM are skipped unless those extras are installed.
 
 ## Documentation
 
 - [docs/LABELS.md](docs/LABELS.md) — label schema and setup identifiers
 - [docs/SSL_RESEARCH_NOTES.md](docs/SSL_RESEARCH_NOTES.md) — current SSL approach, constraints, candidate objectives
+- [docs/VISION_MVP.md](docs/VISION_MVP.md) — chart vision scan install, freshness, CLI, and deferred features
+- [docs/VISION_CONTRACT.md](docs/VISION_CONTRACT.md) — frozen vision pipeline contracts
 
 ## Project status
 

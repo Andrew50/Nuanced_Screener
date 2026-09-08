@@ -33,8 +33,8 @@ def _join(items: tuple[str, ...]) -> str:
     return "\n".join(items)
 
 
-def main() -> None:
-    st.set_page_config(page_title="Setup builder", layout="wide")
+def render_builder_page() -> None:
+    """Setup builder body. Page configuration belongs to the shared app entry."""
     cfg, svc = _service()
     specs = svc.list_setups()
     selected = st.session_state.get("setup_id")
@@ -239,6 +239,11 @@ def _render_example_list(cfg: LoaderConfig, spec, examples) -> None:
             st.image(render_example_png(cfg, spec, ex), use_container_width=True)
         except Exception:
             pass
+
+
+def main() -> None:
+    st.set_page_config(page_title="Setup builder", layout="wide")
+    render_builder_page()
 
 
 if __name__ == "__main__":
