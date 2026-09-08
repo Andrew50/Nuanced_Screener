@@ -6,41 +6,89 @@ from rich import print
 
 from .config import LoaderConfig
 from .duckdb_utils import connect
+from .feature_sql import (
+    DAILY_RANGE_PCT_SQL,
+    feature_sql_fragments,
+    max_feature_lookback_days,
+    merge_filter_features,
+)
 from .paths import atomic_replace, ensure_dirs
 
 
-_FEATURE_SQL: dict[str, str] = {
-    # Returns (based on close)
-    "ret_1d": "(close / LAG(close, 1) OVER (PARTITION BY ticker ORDER BY date) - 1.0) AS ret_1d",
-    "ret_5d": "(close / LAG(close, 5) OVER (PARTITION BY ticker ORDER BY date) - 1.0) AS ret_5d",
-    "ret_21d": "(close / LAG(close, 21) OVER (PARTITION BY ticker ORDER BY date) - 1.0) AS ret_21d",
-    # Liquidity
-    "vol_avg_20": "AVG(volume) OVER (PARTITION BY ticker ORDER BY date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) AS vol_avg_20",
-    "dollar_vol_avg_20": "AVG(volume * close) OVER (PARTITION BY ticker ORDER BY date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) AS dollar_vol_avg_20",
-    # Volatility-ish
-    "range_pct": "((high - low) / NULLIF(close, 0.0)) AS range_pct",
-}
+def _resolved_feature_columns(config: LoaderConfig) -> tuple[str, ...]:
+    return merge_filter_features(config.feature_columns)
 
 
-_FEATURE_LOOKBACK_DAYS: dict[str, int] = {
-    # Max lag/window required for computing the feature at a given row.
-    "ret_1d": 1,
-    "ret_5d": 5,
-    "ret_21d": 21,
-    "vol_avg_20": 19,
-    "dollar_vol_avg_20": 19,
-    "range_pct": 0,
-}
+def _feature_sql_clause(feature_columns: tuple[str, ...]) -> str:
+    exprs = feature_sql_fragments(feature_columns)
+    if not exprs:
+        return ""
+    return ",\n            " + ",\n            ".join(exprs)
 
 
-def _max_feature_lookback_days(feature_columns: tuple[str, ...]) -> int:
-    m = 0
-    for f in feature_columns:
-        key = f.strip()
-        if not key:
-            continue
-        m = max(m, _FEATURE_LOOKBACK_DAYS.get(key, 0))
-    return m
+def _empty_typed_nulls(feature_columns: tuple[str, ...]) -> list[str]:
+    typed_nulls = [
+        "CAST(NULL AS VARCHAR) AS ticker",
+        "CAST(NULL AS DATE) AS date",
+        "CAST(NULL AS DOUBLE) AS open",
+        "CAST(NULL AS DOUBLE) AS high",
+        "CAST(NULL AS DOUBLE) AS low",
+        "CAST(NULL AS DOUBLE) AS close",
+        "CAST(NULL AS BIGINT) AS volume",
+        "CAST(NULL AS DOUBLE) AS adj_close",
+    ]
+    for c in feature_columns:
+        typed_nulls.append(f"CAST(NULL AS DOUBLE) AS {c}")
+    typed_nulls.append("CAST(NULL AS BIGINT) AS rn")
+    return typed_nulls
+
+
+def _copy_last_n_sql(source_rel: str, *, window_size: int, feature_columns: tuple[str, ...]) -> str:
+    feature_sql = _feature_sql_clause(feature_columns)
+    return f"""
+        COPY (
+          WITH src AS (
+            SELECT
+              ticker,
+              CAST(date AS DATE) AS date,
+              open,
+              high,
+              low,
+              close,
+              volume,
+              adj_close
+            FROM {source_rel}
+          ),
+          staged AS (
+            SELECT
+              *,
+              {DAILY_RANGE_PCT_SQL}
+            FROM src
+          ),
+          base AS (
+            SELECT
+              ticker,
+              date,
+              open,
+              high,
+              low,
+              close,
+              volume,
+              adj_close
+              {feature_sql}
+            FROM staged
+          ),
+          ranked AS (
+            SELECT
+              *,
+              ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date DESC) AS rn
+            FROM base
+          )
+          SELECT *
+          FROM ranked
+          WHERE rn <= {int(window_size)}
+        )
+    """
 
 
 def _sql_quote_path(p: Path) -> str:
@@ -58,34 +106,13 @@ def rebuild_last_n_bars_from_files(config: LoaderConfig, parquet_files: list[Pat
 
     con = connect(config)
 
+    feature_columns = _resolved_feature_columns(config)
     if not parquet_files:
         # Create an empty Parquet with a stable schema so downstream queries fail less often.
         window_size = int(config.window_size)
         if window_size <= 0:
             raise ValueError("window_size must be > 0")
-
-        feature_cols = []
-        for f in config.feature_columns:
-            key = f.strip()
-            if not key:
-                continue
-            if key not in _FEATURE_SQL:
-                raise ValueError(f"Unknown feature column: {key}. Known: {sorted(_FEATURE_SQL)}")
-            feature_cols.append(key)
-
-        typed_nulls = [
-            "CAST(NULL AS VARCHAR) AS ticker",
-            "CAST(NULL AS DATE) AS date",
-            "CAST(NULL AS DOUBLE) AS open",
-            "CAST(NULL AS DOUBLE) AS high",
-            "CAST(NULL AS DOUBLE) AS low",
-            "CAST(NULL AS DOUBLE) AS close",
-            "CAST(NULL AS BIGINT) AS volume",
-            "CAST(NULL AS DOUBLE) AS adj_close",
-        ]
-        for c in feature_cols:
-            typed_nulls.append(f"CAST(NULL AS DOUBLE) AS {c}")
-        typed_nulls.append("CAST(NULL AS BIGINT) AS rn")
+        typed_nulls = _empty_typed_nulls(feature_columns)
 
         con.execute(
             f"""
@@ -102,51 +129,15 @@ def rebuild_last_n_bars_from_files(config: LoaderConfig, parquet_files: list[Pat
         print(f"[yellow]Derived[/yellow] wrote empty {out_path}")
         return out_path
 
-    feature_exprs = []
-    for f in config.feature_columns:
-        key = f.strip()
-        if not key:
-            continue
-        if key not in _FEATURE_SQL:
-            raise ValueError(f"Unknown feature column: {key}. Known: {sorted(_FEATURE_SQL)}")
-        feature_exprs.append(_FEATURE_SQL[key])
-
-    feature_sql = ""
-    if feature_exprs:
-        feature_sql = ",\n            " + ",\n            ".join(feature_exprs)
-
     window_size = int(config.window_size)
     if window_size <= 0:
         raise ValueError("window_size must be > 0")
 
     files_sql = "[" + ", ".join(_sql_quote_path(p) for p in parquet_files) + "]"
-
+    sql = _copy_last_n_sql(f"read_parquet({files_sql})", window_size=window_size, feature_columns=feature_columns)
     con.execute(
         f"""
-        COPY (
-          WITH base AS (
-            SELECT
-              ticker,
-              CAST(date AS DATE) AS date,
-              open,
-              high,
-              low,
-              close,
-              volume,
-              adj_close
-              {feature_sql}
-            FROM read_parquet({files_sql})
-          ),
-          ranked AS (
-            SELECT
-              *,
-              ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date DESC) AS rn
-            FROM base
-          )
-          SELECT *
-          FROM ranked
-          WHERE rn <= {window_size}
-        )
+        {sql}
         TO '{tmp_path.as_posix()}'
         (FORMAT PARQUET, CODEC 'ZSTD');
         """
@@ -166,7 +157,8 @@ def rebuild_last_n_bars_from_polygon_date_partitions(config: LoaderConfig) -> Pa
         return rebuild_last_n_bars_from_files(config, [])
 
     dates_sorted = sorted(parts.keys())
-    lookback = _max_feature_lookback_days(config.feature_columns)
+    feature_columns = _resolved_feature_columns(config)
+    lookback = max_feature_lookback_days(feature_columns)
     k = int(config.window_size) + int(lookback) + 2
     if k <= 0:
         k = 1
@@ -186,38 +178,13 @@ def rebuild_last_n_bars(config: LoaderConfig) -> Path:
     tmp_path = Path(str(out_path) + ".tmp")
 
     con = connect(config)
-
+    feature_columns = _resolved_feature_columns(config)
     raw_files = list(config.paths.raw_dir.glob("*.parquet"))
     if not raw_files:
-        # Create an empty Parquet with a stable schema so downstream queries fail less often.
         window_size = int(config.window_size)
         if window_size <= 0:
             raise ValueError("window_size must be > 0")
-
-        feature_cols = []
-        for f in config.feature_columns:
-            key = f.strip()
-            if not key:
-                continue
-            if key not in _FEATURE_SQL:
-                raise ValueError(f"Unknown feature column: {key}. Known: {sorted(_FEATURE_SQL)}")
-            feature_cols.append(key)
-
-        # Build a typed empty relation.
-        typed_nulls = [
-            "CAST(NULL AS VARCHAR) AS ticker",
-            "CAST(NULL AS DATE) AS date",
-            "CAST(NULL AS DOUBLE) AS open",
-            "CAST(NULL AS DOUBLE) AS high",
-            "CAST(NULL AS DOUBLE) AS low",
-            "CAST(NULL AS DOUBLE) AS close",
-            "CAST(NULL AS BIGINT) AS volume",
-            "CAST(NULL AS DOUBLE) AS adj_close",
-        ]
-        for c in feature_cols:
-            typed_nulls.append(f"CAST(NULL AS DOUBLE) AS {c}")
-        typed_nulls.append("CAST(NULL AS BIGINT) AS rn")
-
+        typed_nulls = _empty_typed_nulls(feature_columns)
         con.execute(
             f"""
             COPY (
@@ -233,50 +200,14 @@ def rebuild_last_n_bars(config: LoaderConfig) -> Path:
         print(f"[yellow]Derived[/yellow] no raw files; wrote empty {out_path}")
         return out_path
 
-    feature_exprs = []
-    for f in config.feature_columns:
-        key = f.strip()
-        if not key:
-            continue
-        if key not in _FEATURE_SQL:
-            raise ValueError(f"Unknown feature column: {key}. Known: {sorted(_FEATURE_SQL)}")
-        feature_exprs.append(_FEATURE_SQL[key])
-
-    feature_sql = ""
-    if feature_exprs:
-        feature_sql = ",\n            " + ",\n            ".join(feature_exprs)
-
     window_size = int(config.window_size)
     if window_size <= 0:
         raise ValueError("window_size must be > 0")
 
-    # Build a compact last-N table for scans.
+    sql = _copy_last_n_sql(f"read_parquet('{raw_glob}')", window_size=window_size, feature_columns=feature_columns)
     con.execute(
         f"""
-        COPY (
-          WITH base AS (
-            SELECT
-              ticker,
-              CAST(date AS DATE) AS date,
-              open,
-              high,
-              low,
-              close,
-              volume,
-              adj_close
-              {feature_sql}
-            FROM read_parquet('{raw_glob}')
-          ),
-          ranked AS (
-            SELECT
-              *,
-              ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date DESC) AS rn
-            FROM base
-          )
-          SELECT *
-          FROM ranked
-          WHERE rn <= {window_size}
-        )
+        {sql}
         TO '{tmp_path.as_posix()}'
         (FORMAT PARQUET, CODEC 'ZSTD');
         """

@@ -12,40 +12,12 @@ import pandas as pd
 from .calendar_utils import TradingCalendar, last_n_trading_days_ending_at, next_n_trading_days_starting_after
 from .config import LoaderConfig
 from .duckdb_utils import connect
+from .feature_sql import DAILY_RANGE_PCT_SQL, feature_sql_fragments, max_feature_lookback_days
 from .paths import atomic_replace, ensure_dirs
 
 
-# Keep these consistent with `derived.py` (duplicated intentionally to avoid importing private constants).
-_FEATURE_SQL: dict[str, str] = {
-    # Returns (based on close)
-    "ret_1d": "(close / LAG(close, 1) OVER (PARTITION BY ticker ORDER BY date) - 1.0) AS ret_1d",
-    "ret_5d": "(close / LAG(close, 5) OVER (PARTITION BY ticker ORDER BY date) - 1.0) AS ret_5d",
-    "ret_21d": "(close / LAG(close, 21) OVER (PARTITION BY ticker ORDER BY date) - 1.0) AS ret_21d",
-    # Liquidity
-    "vol_avg_20": "AVG(volume) OVER (PARTITION BY ticker ORDER BY date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) AS vol_avg_20",
-    "dollar_vol_avg_20": "AVG(volume * close) OVER (PARTITION BY ticker ORDER BY date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) AS dollar_vol_avg_20",
-    # Volatility-ish
-    "range_pct": "((high - low) / NULLIF(close, 0.0)) AS range_pct",
-}
-
-_FEATURE_LOOKBACK_DAYS: dict[str, int] = {
-    "ret_1d": 1,
-    "ret_5d": 5,
-    "ret_21d": 21,
-    "vol_avg_20": 19,
-    "dollar_vol_avg_20": 19,
-    "range_pct": 0,
-}
-
-
 def _max_feature_lookback_days(feature_columns: Iterable[str]) -> int:
-    m = 0
-    for f in feature_columns:
-        key = str(f).strip()
-        if not key:
-            continue
-        m = max(m, _FEATURE_LOOKBACK_DAYS.get(key, 0))
-    return m
+    return max_feature_lookback_days(feature_columns)
 
 
 def _sql_quote_path(p: Path) -> str:
@@ -226,15 +198,6 @@ def build_windowed_bars(
     if not parquet_files:
         raise ValueError("No raw OHLCV parquet files found for requested samples/dates")
 
-    for f in spec.feature_columns:
-        key = str(f).strip()
-        if not key:
-            continue
-        if key not in _FEATURE_SQL:
-            raise ValueError(f"Unknown feature column: {key}. Known: {sorted(_FEATURE_SQL)}")
-
-    # Validate sample meta columns exist and are safe identifiers for DuckDB SELECT.
-    # (We avoid quoting here; keep the contract simple and explicit.)
     meta_cols: list[str] = []
     for c in spec.sample_meta_columns:
         key = str(c).strip()
@@ -249,11 +212,7 @@ def build_windowed_bars(
             )
         meta_cols.append(key)
 
-    feature_exprs = []
-    for f in spec.feature_columns:
-        key = str(f).strip()
-        if key:
-            feature_exprs.append(_FEATURE_SQL[key])
+    feature_exprs = feature_sql_fragments(spec.feature_columns)
     feature_sql = ""
     if feature_exprs:
         feature_sql = ",\n          " + ",\n          ".join(feature_exprs)
@@ -299,7 +258,7 @@ def build_windowed_bars(
     con.execute(
         f"""
         COPY (
-          WITH raw AS (
+          WITH src AS (
             SELECT
               ticker,
               CAST(date AS DATE) AS date,
@@ -309,8 +268,25 @@ def build_windowed_bars(
               close,
               volume,
               adj_close
-              {feature_sql}
             FROM read_parquet({files_sql})
+          ),
+          raw AS (
+            SELECT
+              ticker,
+              date,
+              open,
+              high,
+              low,
+              close,
+              volume,
+              adj_close
+              {feature_sql}
+            FROM (
+              SELECT
+                *,
+                {DAILY_RANGE_PCT_SQL}
+              FROM src
+            ) staged
           ),
           joined AS (
             SELECT
@@ -534,14 +510,6 @@ def build_context_window_bars(
     if not parquet_files:
         raise ValueError("No raw OHLCV parquet files found for requested samples/dates")
 
-    for f in spec.feature_columns:
-        key = str(f).strip()
-        if not key:
-            continue
-        if key not in _FEATURE_SQL:
-            raise ValueError(f"Unknown feature column: {key}. Known: {sorted(_FEATURE_SQL)}")
-
-    # Validate sample meta columns exist and are safe identifiers for DuckDB SELECT.
     meta_cols: list[str] = []
     for c in spec.sample_meta_columns:
         key = str(c).strip()
@@ -555,11 +523,7 @@ def build_context_window_bars(
             )
         meta_cols.append(key)
 
-    feature_exprs = []
-    for f in spec.feature_columns:
-        key = str(f).strip()
-        if key:
-            feature_exprs.append(_FEATURE_SQL[key])
+    feature_exprs = feature_sql_fragments(spec.feature_columns)
     feature_sql = ""
     if feature_exprs:
         feature_sql = ",\n          " + ",\n          ".join(feature_exprs)
@@ -588,7 +552,7 @@ def build_context_window_bars(
     con.execute(
         f"""
         COPY (
-          WITH raw AS (
+          WITH src AS (
             SELECT
               ticker,
               CAST(date AS DATE) AS date,
@@ -598,8 +562,25 @@ def build_context_window_bars(
               close,
               volume,
               adj_close
-              {feature_sql}
             FROM read_parquet({files_sql})
+          ),
+          raw AS (
+            SELECT
+              ticker,
+              date,
+              open,
+              high,
+              low,
+              close,
+              volume,
+              adj_close
+              {feature_sql}
+            FROM (
+              SELECT
+                *,
+                {DAILY_RANGE_PCT_SQL}
+              FROM src
+            ) staged
           ),
           joined AS (
             SELECT

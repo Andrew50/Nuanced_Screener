@@ -7,5 +7,6 @@ from . import data as _data  # noqa: F401
 from . import candidates as _candidates  # noqa: F401
 from . import weak as _weak  # noqa: F401
 from . import models as _models  # noqa: F401
+from . import setups as _setups  # noqa: F401
 
 __all__ = ["app", "main"]

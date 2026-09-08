@@ -13,6 +13,8 @@ candidates_app = typer.Typer(add_completion=False, no_args_is_help=True)
 app.add_typer(candidates_app, name="candidates")
 weak_app = typer.Typer(add_completion=False, no_args_is_help=True)
 app.add_typer(weak_app, name="weak")
+setups_app = typer.Typer(add_completion=False, no_args_is_help=True)
+app.add_typer(setups_app, name="setups")
 
 
 def main() -> None:

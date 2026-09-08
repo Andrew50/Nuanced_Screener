@@ -89,6 +89,10 @@ class DataPaths:
         return self.meta_dir / "symbol_map.csv"
 
     @property
+    def setups_dir(self) -> Path:
+        return self.data_dir / "setups"
+
+    @property
     def labels_parquet(self) -> Path:
         return self.labels_dir / "labels.parquet"
 
@@ -127,6 +131,7 @@ class DataPaths:
 def ensure_dirs(paths: DataPaths) -> None:
     paths.meta_dir.mkdir(parents=True, exist_ok=True)
     paths.labels_dir.mkdir(parents=True, exist_ok=True)
+    paths.setups_dir.mkdir(parents=True, exist_ok=True)
     paths.raw_dir.mkdir(parents=True, exist_ok=True)
     paths.raw_by_date_dir.mkdir(parents=True, exist_ok=True)
     paths.polygon_grouped_daily_dir.mkdir(parents=True, exist_ok=True)
