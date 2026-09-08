@@ -1,0 +1,23 @@
+id: flag
+name: Flag
+enabled: true
+timeframe: 1d
+lookback_bars: 100
+description: ''
+criteria:
+  required: []
+  preferred: []
+  disqualifiers: []
+llm_notes: ''
+filters:
+  min_price: null
+  min_dollar_vol_20d: null
+  min_adr_pct_20: null
+  min_market_cap: null
+  max_market_cap: null
+chart:
+  volume: true
+  moving_averages:
+  - 10
+  - 20
+  - 50

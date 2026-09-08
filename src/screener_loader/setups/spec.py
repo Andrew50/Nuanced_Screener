@@ -33,6 +33,22 @@ def _require_id(setup_id: str) -> str:
     return sid
 
 
+def slugify_setup_id(name: str) -> str:
+    """
+    Derive a stable directory/key slug from a display name.
+    'Episodic Pivot' -> 'episodic_pivot'. The id does not change if the name is later renamed.
+    """
+    raw = str(name).strip().lower()
+    slug = re.sub(r"[^a-z0-9]+", "_", raw).strip("_")
+    if not slug:
+        raise SetupValidationError("Setup name must contain a letter or number")
+    if slug[0].isdigit():
+        slug = f"s_{slug}"
+    if slug in RESERVED_SETUP_IDS:
+        slug = f"{slug}_setup"
+    return _require_id(slug)
+
+
 def _require_timeframe(value: str) -> str:
     tf = str(value).strip().lower()
     if tf != ALLOWED_TIMEFRAME:

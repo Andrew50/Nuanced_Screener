@@ -20,6 +20,7 @@ from .spec import (
     VisionExample,
     assert_market_cap_unused,
     assert_setup_does_not_loosen,
+    slugify_setup_id,
 )
 
 
@@ -55,15 +56,20 @@ class SetupService:
 
     def create(
         self,
-        setup_id: str,
         name: str,
         *,
+        setup_id: str | None = None,
         description: str = "",
         timeframe: str = ALLOWED_TIMEFRAME,
         lookback_bars: int = 100,
     ) -> SetupSpec:
+        name = str(name).strip()
+        if setup_id is not None and str(setup_id).strip():
+            sid = str(setup_id).strip()
+        else:
+            sid = self._unique_setup_id(slugify_setup_id(name))
         spec = SetupSpec(
-            id=setup_id,
+            id=sid,
             name=name,
             description=description,
             timeframe=timeframe,
@@ -167,6 +173,15 @@ class SetupService:
 
     def _unique_example_id(self, setup_id: str, base: str) -> str:
         existing = {ex.id for ex in store.load_examples(self.paths, setup_id)}
+        if base not in existing:
+            return base
+        i = 2
+        while f"{base}_{i}" in existing:
+            i += 1
+        return f"{base}_{i}"
+
+    def _unique_setup_id(self, base: str) -> str:
+        existing = set(store.list_setup_ids(self.paths))
         if base not in existing:
             return base
         i = 2

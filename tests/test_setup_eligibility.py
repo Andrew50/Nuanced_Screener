@@ -34,12 +34,12 @@ def test_eligibility_union(tmp_path: Path) -> None:
     ensure_dirs(cfg.paths)
     svc = SetupService(cfg.paths)
     svc.save_global_filters(svc.load_global_filters())
-    a = svc.create("flag", "Flag")
+    a = svc.create("Flag")
     svc.save(update_spec_fields(a, filters=SetupFilters(min_adr_pct_20=0.04)))
-    b = svc.create("ep", "EP")
+    b = svc.create("EP")
     svc.save(update_spec_fields(b, filters=SetupFilters(min_adr_pct_20=0.08)))
-    svc.create("mr", "Mean Reversion")
-    svc.set_enabled("mr", False)
+    svc.create("Mean Reversion")
+    svc.set_enabled("mean_reversion", False)
 
     rows = [
         _latest_row("AAPL", 10.0, 8_000_000, 0.05),  # flag only
@@ -54,14 +54,14 @@ def test_eligibility_union(tmp_path: Path) -> None:
     assert tickers == {"AAPL", "NVDA"}
     assert result.eligible_setups["AAPL"] == ("flag",)
     assert result.eligible_setups["NVDA"] == ("ep", "flag")
-    assert "mr" not in result.eligible_setups.get("NVDA", ())
+    assert "mean_reversion" not in result.eligible_setups.get("NVDA", ())
 
 
 def test_eligibility_market_cap_fail_closed(tmp_path: Path) -> None:
     cfg = LoaderConfig(repo_root=tmp_path)
     ensure_dirs(cfg.paths)
     svc = SetupService(cfg.paths)
-    svc.create("flag", "Flag")
+    svc.create("Flag")
     yaml_path = cfg.paths.setups_dir / "flag" / "setup.yaml"
     text = yaml_path.read_text(encoding="utf-8")
     text = text.replace("min_market_cap: null", "min_market_cap: 100000000")

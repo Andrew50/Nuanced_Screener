@@ -12,7 +12,7 @@ import streamlit as st
 from screener_loader.config import LoaderConfig
 from screener_loader.paths import ensure_dirs
 from screener_loader.setups.service import SetupService, update_spec_fields
-from screener_loader.setups.spec import ChartStyle, SetupCriteria, SetupFilters
+from screener_loader.setups.spec import ChartStyle, SetupCriteria, SetupFilters, slugify_setup_id
 
 
 def _repo_root() -> Path:
@@ -47,11 +47,15 @@ def main() -> None:
 
     with col_list:
         st.subheader("Setups")
-        new_id = st.text_input("New id", placeholder="episodic_pivot")
         new_name = st.text_input("Name", placeholder="Episodic Pivot")
+        if new_name.strip():
+            try:
+                st.caption(f"id: {slugify_setup_id(new_name)}")
+            except Exception:
+                pass
         if st.button("Create", type="primary"):
             try:
-                spec = svc.create(new_id.strip(), new_name.strip() or new_id.strip())
+                spec = svc.create(new_name.strip())
                 st.session_state["setup_id"] = spec.id
                 st.rerun()
             except Exception as e:

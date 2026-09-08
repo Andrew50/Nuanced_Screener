@@ -14,6 +14,7 @@ from screener_loader.setups.spec import (
     SetupCriteria,
     SetupFilters,
     SetupValidationError,
+    slugify_setup_id,
 )
 
 
@@ -25,7 +26,7 @@ def _svc(tmp_path: Path) -> SetupService:
 
 def test_create_list_disable_roundtrip(tmp_path: Path) -> None:
     svc = _svc(tmp_path)
-    spec = svc.create("flag", "Flag", description="Impulse then consolidation.")
+    spec = svc.create("Flag", description="Impulse then consolidation.")
     spec = svc.save(
         update_spec_fields(
             spec,
@@ -43,9 +44,9 @@ def test_create_list_disable_roundtrip(tmp_path: Path) -> None:
 
 def test_examples_not_written_to_labels_csv(tmp_path: Path) -> None:
     svc = _svc(tmp_path)
-    svc.create("ep", "Episodic Pivot")
+    svc.create("Episodic Pivot")
     svc.add_market_window_example(
-        "ep",
+        "episodic_pivot",
         ticker="NVDA",
         asof_date=date(2026, 6, 18),
         polarity="positive",
@@ -54,14 +55,14 @@ def test_examples_not_written_to_labels_csv(tmp_path: Path) -> None:
     )
     labels = tmp_path / "labels.csv"
     assert not labels.exists()
-    examples = svc.load_examples("ep")
+    examples = svc.load_examples("episodic_pivot")
     assert examples[0].ticker == "NVDA"
     assert examples[0].polarity == "positive"
 
 
 def test_positive_and_negative_examples(tmp_path: Path) -> None:
     svc = _svc(tmp_path)
-    svc.create("flag", "Flag")
+    svc.create("Flag")
     svc.add_market_window_example(
         "flag", ticker="NVDA", asof_date=date(2026, 6, 12), polarity="positive", quality="canonical"
     )
@@ -82,7 +83,7 @@ def test_positive_and_negative_examples(tmp_path: Path) -> None:
 
 def test_image_example_copied(tmp_path: Path) -> None:
     svc = _svc(tmp_path)
-    svc.create("flag", "Flag")
+    svc.create("Flag")
     src = tmp_path / "shot.png"
     src.write_bytes(b"\x89PNG\r\n\x1a\nnot-a-real-image")
     ex = svc.add_image_example("flag", src, polarity="negative", quality="near_miss")
@@ -93,14 +94,14 @@ def test_image_example_copied(tmp_path: Path) -> None:
 
 def test_market_cap_fail_closed(tmp_path: Path) -> None:
     svc = _svc(tmp_path)
-    spec = svc.create("flag", "Flag")
+    spec = svc.create("Flag")
     with pytest.raises(MarketCapUnavailableError):
         svc.save(update_spec_fields(spec, filters=SetupFilters(min_market_cap=100_000_000)))
 
 
 def test_setup_cannot_loosen_global(tmp_path: Path) -> None:
     svc = _svc(tmp_path)
-    spec = svc.create("flag", "Flag")
+    spec = svc.create("Flag")
     with pytest.raises(SetupValidationError, match="loosens"):
         svc.save(update_spec_fields(spec, filters=SetupFilters(min_price=0.5)))
 
@@ -108,12 +109,12 @@ def test_setup_cannot_loosen_global(tmp_path: Path) -> None:
 def test_reject_intraday_timeframe(tmp_path: Path) -> None:
     svc = _svc(tmp_path)
     with pytest.raises(SetupValidationError, match="1d"):
-        svc.create("flag", "Flag", timeframe="5m")
+        svc.create("Flag", timeframe="5m")
 
 
 def test_compile_prompt_structure(tmp_path: Path) -> None:
     svc = _svc(tmp_path)
-    spec = svc.create("flag", "Flag", description="Controlled consolidation.")
+    spec = svc.create("Flag", description="Controlled consolidation.")
     svc.save(
         update_spec_fields(
             spec,
@@ -124,3 +125,15 @@ def test_compile_prompt_structure(tmp_path: Path) -> None:
     assert "Required:" in text
     assert "- breakout" in text
     assert "- choppy" in text
+
+
+def test_create_slugs_name_and_avoids_collision(tmp_path: Path) -> None:
+    assert slugify_setup_id("Episodic Pivot") == "episodic_pivot"
+    assert slugify_setup_id("Flag") == "flag"
+    svc = _svc(tmp_path)
+    a = svc.create("Episodic Pivot")
+    b = svc.create("Episodic Pivot")
+    assert a.id == "episodic_pivot"
+    assert a.name == "Episodic Pivot"
+    assert b.id == "episodic_pivot_2"
+    assert b.name == "Episodic Pivot"

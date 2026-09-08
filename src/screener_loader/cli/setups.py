@@ -69,19 +69,19 @@ def setups_show(
 
 @setups_app.command("create")
 def setups_create(
-    setup_id: str = typer.Option(..., "--id"),
     name: str = typer.Option(..., "--name"),
+    setup_id: Optional[str] = typer.Option(None, "--id", help="Optional slug. Default: derived from --name."),
     description: str = typer.Option("", "--description"),
     repo_root: Path = typer.Option(Path("."), "--repo-root"),
     lookback_bars: int = typer.Option(100, "--lookback-bars"),
 ) -> None:
     svc = _service(repo_root)
     try:
-        spec = svc.create(setup_id, name, description=description, lookback_bars=lookback_bars)
+        spec = svc.create(name, setup_id=setup_id, description=description, lookback_bars=lookback_bars)
     except Exception as e:
         _fail(e)
         return
-    print(f"[green]Created[/green] {spec.id}")
+    print(f"[green]Created[/green] {spec.id} ({spec.name})")
 
 
 @setups_app.command("enable")

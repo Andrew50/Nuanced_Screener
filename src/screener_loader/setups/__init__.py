@@ -13,6 +13,7 @@ from .spec import (
     SetupSpec,
     SetupValidationError,
     VisionExample,
+    slugify_setup_id,
 )
 
 __all__ = [
@@ -30,4 +31,5 @@ __all__ = [
     "VisionExample",
     "compile_prompt",
     "compute_eligibility",
+    "slugify_setup_id",
 ]
